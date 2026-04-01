@@ -25,18 +25,27 @@ export default function AnalyzingStep() {
     ).start();
   }, []);
 
+  const MAX_PROGRESS = 0.85;
+
   useEffect(() => {
+    // Start bar immediately at first step
+    Animated.timing(progressAnim, {
+      toValue: (1 / STAGES.length) * MAX_PROGRESS,
+      duration: 600,
+      useNativeDriver: false,
+    }).start();
+
     const interval = setInterval(() => {
       setStageIdx((i) => {
         const next = i < STAGES.length - 1 ? i + 1 : i;
         Animated.timing(progressAnim, {
-          toValue: (next + 1) / STAGES.length,
+          toValue: Math.min(((next + 1) / STAGES.length) * MAX_PROGRESS, MAX_PROGRESS),
           duration: 800,
           useNativeDriver: false,
         }).start();
         return next;
       });
-    }, 4000);
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
 

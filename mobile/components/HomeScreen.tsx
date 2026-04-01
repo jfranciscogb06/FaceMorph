@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, Image, TouchableOpacity, StyleSheet,
-  Dimensions, Alert, Platform,
+  Dimensions, Alert, Platform, Modal, StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -96,13 +96,13 @@ const MINI_KEYS: { key: keyof ScanHistoryItem['scores']; label: string }[] = [
 
 // ─── Calendar Strip ───────────────────────────────────────────────────────────
 
-function CalendarStrip({ history, onSelectDay }: {
+function CalendarStrip({ history, selected, onSelect }: {
   history: ScanHistoryItem[];
-  onSelectDay: (item: ScanHistoryItem) => void;
+  selected: string;
+  onSelect: (dateStr: string) => void;
 }) {
   const days = calendarDays();
   const today = new Date();
-  const [selected, setSelected] = useState<string>(today.toISOString().split('T')[0]);
 
   // Build map: dateStr → best scan for that day
   const scanMap = new Map<string, ScanHistoryItem>();
@@ -128,10 +128,7 @@ function CalendarStrip({ history, onSelectDay }: {
           <TouchableOpacity
             key={dateStr}
             style={styles.calDay}
-            onPress={() => {
-              setSelected(dateStr);
-              if (scan) onSelectDay(scan);
-            }}
+            onPress={() => onSelect(dateStr)}
             activeOpacity={0.7}
             disabled={isFuture}
           >
@@ -141,7 +138,7 @@ function CalendarStrip({ history, onSelectDay }: {
             <View style={[
               styles.calCircle,
               isToday && styles.calCircleToday,
-              isSel && scan && { borderColor: scoreColor(scan.overallScore), borderWidth: 2 },
+              isSel && { borderColor: '#111', borderWidth: 2 },
               isFuture && styles.calCircleFuture,
             ]}>
               {scan ? (
@@ -272,16 +269,36 @@ function ResultsDetail({ item, fallbackPhotoUri, onBack, onDelete }: {
 
 // ─── Home Tab ─────────────────────────────────────────────────────────────────
 
-function HomeTab({ history, latestPhotoUri, onSelectScan, onNewScan }: {
+function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
   history: ScanHistoryItem[];
   latestPhotoUri: string | null;
-  onSelectScan: (item: ScanHistoryItem) => void;
-  onNewScan: () => void;
+  onDeleteScan: (id: string) => void;
 }) {
   const streak = computeStreak(history);
-  const latest = history[0] ?? null;
-  const photo = latest?.photoUri || latestPhotoUri;
-  const t = latest ? tier(latest.overallScore) : null;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [showChat, setShowChat] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+
+  // Build scan map: dateStr → best scan for that day
+  const scanMap = new Map<string, ScanHistoryItem>();
+  for (const item of history) {
+    const d = item.date.split('T')[0];
+    if (!scanMap.has(d) || item.overallScore > scanMap.get(d)!.overallScore) {
+      scanMap.set(d, item);
+    }
+  }
+
+  const selectedScan = scanMap.get(selectedDate) ?? null;
+  const r = selectedScan?.result ?? null;
+  const photo = selectedScan?.photoUri || (selectedDate === todayStr ? latestPhotoUri : null);
+
+  const confirmDelete = (id: string) => {
+    Alert.alert('Delete scan', 'Remove this scan?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDeleteScan(id) },
+    ]);
+  };
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
@@ -297,65 +314,117 @@ function HomeTab({ history, latestPhotoUri, onSelectScan, onNewScan }: {
       </View>
 
       {/* Calendar strip */}
-      <CalendarStrip history={history} onSelectDay={onSelectScan} />
+      <CalendarStrip history={history} selected={selectedDate} onSelect={setSelectedDate} />
 
-      {!latest ? (
+      {!selectedScan ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No scans yet</Text>
-          <Text style={styles.emptySub}>Tap + to take your first scan and start tracking your progress over time.</Text>
+          <Text style={styles.emptyTitle}>
+            {selectedDate === todayStr ? 'No scan yet today' : 'No scan on this day'}
+          </Text>
+          <Text style={styles.emptySub}>
+            {selectedDate === todayStr
+              ? 'Tap + to take your first scan and start tracking your progress.'
+              : 'Select another day or tap + to scan today.'}
+          </Text>
         </View>
       ) : (
-        <>
-          {/* Latest scan hero */}
-          <TouchableOpacity style={styles.latestCard} onPress={() => onSelectScan(latest)} activeOpacity={0.92}>
-            <View>
-              {photo
-                ? <Image source={{ uri: photo }} style={styles.latestPhoto} resizeMode="cover" />
-                : <View style={[styles.latestPhoto, { backgroundColor: '#f3f4f6' }]} />
-              }
-            </View>
-
-            <View style={styles.latestBottom}>
-              <View>
-                <Text style={[styles.latestScore, { color: scoreColor(latest.overallScore) }]}>
-                  {latest.overallScore.toFixed(1)}
-                </Text>
-                <Text style={styles.latestScoreSub}>out of 10</Text>
-                <Text style={styles.latestMeta}>{latest.result.faceShape} · {latest.result.styleCategory}</Text>
-              </View>
-              <ScoreRing score={latest.overallScore} size={72} />
-            </View>
-
-            {/* Metric chips */}
-            <View style={styles.chips}>
-              {MINI_KEYS.map(({ key, label }) => (
-                <View key={key} style={styles.chip}>
-                  <Text style={styles.chipLabel}>{label}</Text>
-                  <Text style={[styles.chipVal, { color: scoreColor(latest.scores[key]) }]}>
-                    {latest.scores[key].toFixed(1)}
-                  </Text>
+        <View style={{ paddingHorizontal: 16, gap: 12 }}>
+          {/* Hero */}
+          <View style={[styles.heroCard, { marginTop: 12 }]}>
+            {photo
+              ? <TouchableOpacity activeOpacity={0.9} onPress={() => setFullscreenPhoto(photo)}>
+                  <Image source={{ uri: photo }} style={styles.heroPhoto} resizeMode="cover" />
+                </TouchableOpacity>
+              : <View style={[styles.heroPhoto, { backgroundColor: '#f3f4f6' }]} />
+            }
+            <View style={styles.heroBottom}>
+              <ScoreRing score={r!.overallScore} size={90} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <View style={styles.tierBadge}>
+                  <Text style={styles.tierBadgeText}>{tier(r!.overallScore).label}</Text>
                 </View>
-              ))}
+                <Text style={styles.heroMeta}>{r!.faceShape} · {r!.styleCategory}</Text>
+              </View>
+              <TouchableOpacity onPress={() => confirmDelete(selectedScan.id)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Ionicons name="trash-outline" size={18} color="#6b7280" />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
 
-          {/* Motivational nudge */}
-          {(() => {
-            const next = tier(latest.overallScore + 1);
-            const gap = (Math.ceil(latest.overallScore) - latest.overallScore + 0.1);
-            if (gap < 1 && next.label !== t!.label) {
+          {/* Score breakdown */}
+          <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Score Breakdown</Text>
+          <View style={styles.scoreGrid}>
+            {Object.entries(r!.scores).map(([key, val]) => {
+              const color = gradientColor(val as number);
               return (
-                <View style={styles.nudgeCard}>
-                  <Text style={styles.nudgeText}>
-                    You're only <Text style={{ fontWeight: '700' }}>{gap.toFixed(1)} pts</Text> away from <Text style={{ fontWeight: '700' }}>{next.label}</Text>
-                  </Text>
+                <View key={key} style={styles.scoreCell}>
+                  <View style={styles.scoreCellTop}>
+                    <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
+                    <Text style={[styles.scoreCellVal, { color }]}>{(val as number).toFixed(1)}</Text>
+                  </View>
+                  <View style={styles.scoreBarBg}>
+                    <View style={[styles.scoreBarFill, { width: `${((val as number) / 10) * 100}%`, backgroundColor: color }]} />
+                  </View>
                 </View>
               );
-            }
-            return null;
-          })()}
-        </>
+            })}
+          </View>
+
+          {/* Strengths */}
+          {r!.strengths.length > 0 && (
+            <View style={styles.infoCard}>
+              <Text style={styles.infoCardTitle}>✓ Strengths</Text>
+              {r!.strengths.map((s, i) => <Text key={i} style={styles.infoItem}>• {s}</Text>)}
+            </View>
+          )}
+
+          {/* Improvements */}
+          {r!.improvements.length > 0 && (
+            <View style={[styles.infoCard, { borderColor: '#fde68a' }]}>
+              <Text style={styles.infoCardTitle}>↑ Areas to Improve</Text>
+              {r!.improvements.map((s, i) => <Text key={i} style={styles.infoItem}>• {s}</Text>)}
+            </View>
+          )}
+
+          {/* Feature analysis */}
+          <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Feature Analysis</Text>
+          {r!.detailedAnalysis.map((d, i) => (
+            <FeatureCard key={i} feature={d.feature} score={d.score} observation={d.observation} tip={d.tip} />
+          ))}
+
+          {/* Recommendations */}
+          {r!.recommendations.length > 0 && (
+            <>
+              <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Recommendations</Text>
+              {r!.recommendations.map((rec, i) => (
+                <View key={i} style={styles.recCard}>
+                  <View style={styles.recBadge}>
+                    <Text style={styles.recBadgeText}>{CAT_LABELS[rec.category] || rec.category}</Text>
+                  </View>
+                  <Text style={styles.recTitle}>{rec.title}</Text>
+                  <Text style={styles.recDesc}>{rec.description}</Text>
+                </View>
+              ))}
+            </>
+          )}
+
+          {/* Ask AI */}
+          <TouchableOpacity style={styles.askAiBtn} onPress={() => setShowChat(true)} activeOpacity={0.85}>
+            <Ionicons name="chatbubble-outline" size={18} color="#fff" />
+            <Text style={styles.askAiBtnText}>Ask AI about your results</Text>
+          </TouchableOpacity>
+
+          <ChatModal visible={showChat} onClose={() => setShowChat(false)} analysisContext={r} />
+          <View style={{ height: 80 }} />
+        </View>
       )}
+
+      <Modal visible={!!fullscreenPhoto} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setFullscreenPhoto(null)}>
+        <TouchableOpacity style={styles.photoModal} activeOpacity={1} onPress={() => setFullscreenPhoto(null)}>
+          <StatusBar hidden />
+          {fullscreenPhoto && <Image source={{ uri: fullscreenPhoto }} style={styles.photoModalImg} resizeMode="contain" />}
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -394,6 +463,9 @@ function ProgressTab({ history, latestPhotoUri, onSelectScan, onDeleteScan }: {
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+      <View style={styles.homeHeader}>
+        <Text style={styles.appTitle}>Progress</Text>
+      </View>
       {/* Stats row */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
@@ -494,6 +566,9 @@ function TipsTab({ history }: { history: ScanHistoryItem[] }) {
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+      <View style={styles.homeHeader}>
+        <Text style={styles.appTitle}>Tips</Text>
+      </View>
       {latest && (
         <Text style={styles.tipsSourceText}>Based on your latest scan</Text>
       )}
@@ -554,6 +629,9 @@ function ProfileTab({ history, onResetApp }: {
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+      <View style={styles.homeHeader}>
+        <Text style={styles.appTitle}>Profile</Text>
+      </View>
       {/* Avatar */}
       <View style={styles.profileAvatar}>
         <Ionicons name="person" size={40} color="#9ca3af" />
@@ -622,19 +700,19 @@ interface Props {
 export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, autoShowLatest, onAutoShowConsumed }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
-  const [viewing, setViewing] = useState<ScanHistoryItem | null>(autoShowLatest ? (history[0] ?? null) : null);
+  const [viewing, setViewing] = useState<ScanHistoryItem | null>(null);
 
   useEffect(() => {
     if (autoShowLatest) onAutoShowConsumed?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const confirmDelete = (id: string) => {
+  const confirmDeleteViewing = (id: string) => {
     Alert.alert('Delete scan', 'Remove this scan?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => {
         onDeleteScan(id);
-        if (viewing?.id === id) setViewing(null);
+        setViewing(null);
       }},
     ]);
   };
@@ -645,7 +723,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
         item={viewing}
         fallbackPhotoUri={latestPhotoUri}
         onBack={() => setViewing(null)}
-        onDelete={() => confirmDelete(viewing.id)}
+        onDelete={() => confirmDeleteViewing(viewing.id)}
       />
     );
   }
@@ -658,8 +736,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
           <HomeTab
             history={history}
             latestPhotoUri={latestPhotoUri}
-            onSelectScan={setViewing}
-            onNewScan={onNewScan}
+            onDeleteScan={onDeleteScan}
           />
         )}
         {tab === 'progress' && (
@@ -722,7 +799,7 @@ const styles = StyleSheet.create({
   calDay: { flex: 1, alignItems: 'center', gap: 4 },
   calDayName: { fontSize: 12, color: '#9ca3af', fontWeight: '500' },
   calCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent' },
-  calCircleToday: { borderColor: '#111' },
+  calCircleToday: { borderColor: '#9ca3af' },
   calCircleFuture: { opacity: 0.3 },
   calCircleFill: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   calDayNum: { fontSize: 15, color: '#374151', fontWeight: '500' },
@@ -750,6 +827,9 @@ const styles = StyleSheet.create({
   latestScore: { fontSize: 38, fontWeight: '800', letterSpacing: -1 },
   latestScoreSub: { fontSize: 14, color: '#9ca3af', marginTop: -2 },
   latestMeta: { fontSize: 14, color: '#9ca3af', marginTop: 4 },
+  photoModal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' },
+  photoModalImg: { width: '100%', height: '100%' },
+
   chips: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 14, gap: 6 },
   chip: { flex: 1, backgroundColor: '#f3f4f6', borderRadius: 10, paddingVertical: 7, alignItems: 'center', gap: 2 },
   chipLabel: { fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.3 },

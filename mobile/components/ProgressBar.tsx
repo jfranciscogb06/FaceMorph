@@ -13,6 +13,6 @@ export default function ProgressBar({ current, total, pct: pctProp }: Props) {
 }
 
 const styles = StyleSheet.create({
-  track: { height: 3, backgroundColor: '#f0f0f0', borderRadius: 4, marginBottom: 32 },
-  fill: { height: 3, backgroundColor: '#000', borderRadius: 4 },
+  track: { height: 6, backgroundColor: '#f0f0f0', borderRadius: 4, marginBottom: 32 },
+  fill: { height: 6, backgroundColor: '#000', borderRadius: 4 },
 });

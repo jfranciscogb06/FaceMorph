@@ -43,10 +43,10 @@ export function computeObjectiveScores(landmarks: LandmarkPoint[]): {
     }
     if (diffs.length > 0) {
       const pct = (diffs.reduce((a, b) => a + b, 0) / diffs.length) * 100;
-      if (pct <= 3)  symmetry = lerp(pct, 0,  3, 10,  8);
-      else if (pct <= 6)  symmetry = lerp(pct, 3,  6,  8,  6);
-      else if (pct <= 10) symmetry = lerp(pct, 6, 10,  6,  4);
-      else                symmetry = lerp(pct, 10, 20,  4,  2);
+      if (pct <= 6)        symmetry = lerp(pct, 0,  6,  10,  8);
+      else if (pct <= 12)  symmetry = lerp(pct, 6,  12,  8,  6);
+      else if (pct <= 20)  symmetry = lerp(pct, 12, 20,  6,  4.5);
+      else                 symmetry = lerp(pct, 20, 35,  4.5, 2.5);
     }
   }
 
@@ -58,10 +58,10 @@ export function computeObjectiveScores(landmarks: LandmarkPoint[]): {
     const cbw = Math.abs(lm.right_cheek.x - lm.left_cheek.x);
     if (cbw > 0) {
       const delta = Math.abs(ipd / cbw - 0.46);
-      if (delta <= 0.02)       goldenRatio = lerp(delta, 0,    0.02, 10,  8.5);
-      else if (delta <= 0.05)  goldenRatio = lerp(delta, 0.02, 0.05,  8.5, 6.5);
-      else if (delta <= 0.08)  goldenRatio = lerp(delta, 0.05, 0.08,  6.5, 5);
-      else                     goldenRatio = lerp(delta, 0.08, 0.15,  5,   2.5);
+      if (delta <= 0.01)       goldenRatio = lerp(delta, 0,    0.01, 10,  8);
+      else if (delta <= 0.03)  goldenRatio = lerp(delta, 0.01, 0.03,  8,  6.5);
+      else if (delta <= 0.06)  goldenRatio = lerp(delta, 0.03, 0.06,  6.5, 5);
+      else                     goldenRatio = lerp(delta, 0.06, 0.15,  5,   2.5);
     }
   }
 

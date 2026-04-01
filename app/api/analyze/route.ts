@@ -2,6 +2,46 @@ import OpenAI from 'openai';
 import { NextRequest, NextResponse } from 'next/server';
 import { computeObjectiveScores, computeOverallScore } from '@/lib/scoreFromLandmarks';
 
+async function flipImageHorizontal(base64: string, mediaType: string): Promise<string | null> {
+  try {
+    const { createCanvas, loadImage } = require('canvas');
+    const img = await loadImage(`data:${mediaType};base64,${base64}`);
+    const canvas = createCanvas(img.width, img.height);
+    const ctx = canvas.getContext('2d');
+    ctx.translate(img.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, 0);
+    return canvas.toBuffer('image/jpeg').toString('base64');
+  } catch (e) {
+    console.error('[analyze] flipImage failed:', e);
+    return null;
+  }
+}
+
+async function scoreSymmetryByImageComparison(
+  client: OpenAI,
+  base64: string,
+  flippedBase64: string,
+  mediaType: string,
+): Promise<number> {
+  const res = await client.chat.completions.create({
+    model: 'grok-4-1-fast-non-reasoning',
+    max_tokens: 50,
+    temperature: 0,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } },
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${flippedBase64}` } },
+        { type: 'text', text: `These are two images: the original face and its horizontally mirrored version. Compare them visually and score facial symmetry on a 1–10 scale (10 = perfectly identical left/right halves, 1 = extremely asymmetric). Consider the overall impression — minor natural asymmetry is normal and should score 6–8. Only reply with a single number like 7.2` },
+      ],
+    }],
+  });
+  const text = res.choices[0]?.message?.content?.trim() || '6.0';
+  const n = parseFloat(text.match(/\d+(\.\d+)?/)?.[0] ?? '6.0');
+  return Math.round(Math.max(1, Math.min(10, n)) * 10) / 10;
+}
+
 export const maxDuration = 60;
 
 const client = new OpenAI({
@@ -52,9 +92,18 @@ export async function POST(req: NextRequest) {
       return parsed;
     };
 
-    // Three parallel calls — take median score per metric to eliminate outliers
-    const [r1, r2, r3] = await Promise.all([callOnce(), callOnce(), callOnce()]);
-    console.log('[analyze] scores r1:', r1.scores, '| r2:', r2.scores, '| r3:', r3.scores);
+    // Flip image for symmetry comparison + three parallel AI calls
+    const flippedBase64 = await flipImageHorizontal(base64, mediaType);
+
+    const [r1, r2, r3, visualSymmetry] = await Promise.all([
+      callOnce(),
+      callOnce(),
+      callOnce(),
+      flippedBase64
+        ? scoreSymmetryByImageComparison(client, base64, flippedBase64, mediaType)
+        : Promise.resolve(null as number | null),
+    ]);
+    console.log('[analyze] scores r1:', r1.scores, '| r2:', r2.scores, '| r3:', r3.scores, '| visualSymmetry:', visualSymmetry);
 
     const median3 = (a: number | undefined, b: number | undefined, c: number | undefined, fallback: number) => {
       const vals = [a ?? fallback, b ?? fallback, c ?? fallback].sort((x, y) => x - y);
@@ -72,13 +121,13 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // Merge deterministic landmark scores with AI visual scores
+    // Landmark-based scores for golden ratio & facial thirds; visual AI for symmetry
     const objScores = (landmarks && landmarks.length >= 8)
       ? computeObjectiveScores(landmarks)
       : { symmetry: 6.0, goldenRatio: 6.0, facialThirds: 6.0 };
 
     const mergedScores = {
-      symmetry:     objScores.symmetry,
+      symmetry:     visualSymmetry ?? objScores.symmetry,
       goldenRatio:  objScores.goldenRatio,
       facialThirds: objScores.facialThirds,
       jawline:      aiResult.scores?.jawline      ?? 6.0,

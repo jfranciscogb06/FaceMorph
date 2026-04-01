@@ -90,7 +90,7 @@ function getProgressPct(slide: number): number | null {
   if (slide === 0) return null; // welcome — hide bar
   if (slide === 1) return 100 / 5;
   const tipIdx = slide - 2;
-  return 40 + (tipIdx / (TIPS.length - 1)) * 60;
+  return 40 + (tipIdx / (TIPS.length - 1)) * 50;
 }
 
 // ─── Before/After Slider ──────────────────────────────────────────────────────
@@ -228,21 +228,22 @@ export default function OnboardingFlow({ onComplete }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [slide, setSlide] = useState(0);
   const [ethnicity, setEthnicity] = useState<Ethnicity[]>([]);
+  const [sliderKey, setSliderKey] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   function goTo(idx: number) {
-    setSlide(idx);
-    scrollRef.current?.scrollTo({ x: idx * width, animated: true });
+    Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }).start(() => {
+      if (idx === 0) setSliderKey(k => k + 1);
+      setSlide(idx);
+      scrollRef.current?.scrollTo({ x: idx * width, animated: false });
+      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start();
+    });
   }
 
   const pct = getProgressPct(slide);
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Progress bar — hidden on welcome slide */}
-      <View style={styles.barWrap}>
-        {pct !== null && <ProgressBar pct={pct} />}
-      </View>
-
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -250,7 +251,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         style={{ flex: 1 }}
-        contentContainerStyle={{ width: width * TOTAL_SLIDES }}
+        contentContainerStyle={{ width: width * TOTAL_SLIDES, height: '100%' }}
       >
 
         {/* ── Slide 0: Welcome ─────────────────────────────────────────── */}
@@ -260,50 +261,34 @@ export default function OnboardingFlow({ onComplete }: Props) {
             <Text style={[styles.welcomeHeadline, { marginBottom: 8 }]}>
               <Text style={{ fontWeight: '400' }}>Your face has potential.{'\n'}</Text>unlock it.
             </Text>
-            <WelcomeSlider containerWidth={width - 48} onComplete={() => goTo(1)} />
+            <WelcomeSlider key={sliderKey} containerWidth={width - 48} onComplete={() => goTo(1)} />
             <Text style={styles.disclaimer}>Free to start · Takes 2 minutes</Text>
           </View>
         </View>
 
         {/* ── Slide 1: Ethnicity ───────────────────────────────────────── */}
         <View style={[styles.slide, { width }]}>
-          <View style={styles.content}>
-            <Text style={styles.title}>Select your ethnicity</Text>
-            <Text style={styles.subtitle}>You can select multiple options</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.options}>
-                {ETHNICITY_OPTIONS.map(({ value, label }) => (
-                  <TouchableOpacity
-                    key={value}
-                    onPress={() => {
-                      setEthnicity(prev =>
-                        prev.includes(value) ? prev.filter(e => e !== value) : [...prev, value]
-                      );
-                    }}
-                    style={[styles.option, ethnicity.includes(value) && styles.optionSelected]}
-                  >
-                    <Text style={[styles.optionText, ethnicity.includes(value) && styles.optionTextSelected]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-          <View style={styles.footer}>
-            <View style={styles.row}>
-              <TouchableOpacity onPress={() => goTo(0)} style={styles.backBtn}>
-                <Text style={styles.backText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => goTo(2)}
-                disabled={ethnicity.length === 0}
-                style={[styles.primaryBtn, { flex: 1 }, ethnicity.length === 0 && styles.btnDisabled]}
-              >
-                <Text style={styles.primaryBtnText}>Continue</Text>
-              </TouchableOpacity>
+          <Text style={[styles.title, { paddingTop: 16 }]}>Select your ethnicity</Text>
+          <Text style={[styles.subtitle, { marginBottom: 12 }]}>You can select multiple options</Text>
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={styles.options}>
+              {ETHNICITY_OPTIONS.map(({ value, label }) => (
+                <TouchableOpacity
+                  key={value}
+                  onPress={() => {
+                    setEthnicity(prev =>
+                      prev.includes(value) ? prev.filter(e => e !== value) : [...prev, value]
+                    );
+                  }}
+                  style={[styles.option, ethnicity.includes(value) && styles.optionSelected]}
+                >
+                  <Text style={[styles.optionText, ethnicity.includes(value) && styles.optionTextSelected]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
+          </ScrollView>
         </View>
 
         {/* ── Slides 2-8: Tips ─────────────────────────────────────────── */}
@@ -351,33 +336,59 @@ export default function OnboardingFlow({ onComplete }: Props) {
                 </View>
               </View>
 
-              <View style={styles.footer}>
-                {/* Dots */}
-                <View style={styles.dots}>
-                  {TIPS.map((_, i) => (
-                    <View key={i} style={[styles.dot, i === tipIdx && styles.dotActive]} />
-                  ))}
-                </View>
-                <View style={styles.row}>
-                  <TouchableOpacity
-                    onPress={() => goTo(slideIdx - 1)}
-                    style={styles.backBtn}
-                  >
-                    <Text style={styles.backText}>Back</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => isLast ? onComplete('male', ethnicity) : goTo(slideIdx + 1)}
-                    style={[styles.primaryBtn, { flex: 1 }]}
-                  >
-                    <Text style={styles.primaryBtnText}>{isLast ? 'Got it' : 'Next'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
             </View>
           );
         })}
 
       </ScrollView>
+      <Animated.View
+        pointerEvents="none"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#fff', opacity: fadeAnim }}
+      />
+
+      {/* Progress bar above fade */}
+      {pct !== null && (
+        <View style={styles.barWrap}>
+          <ProgressBar pct={pct} />
+        </View>
+      )}
+
+      {/* Footer lives outside the ScrollView so it renders above the fade overlay */}
+      {slide === 1 && (
+        <View style={styles.outerFooter}>
+          <View style={styles.row}>
+            <TouchableOpacity onPress={() => goTo(0)} style={styles.backBtn}>
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => goTo(2)}
+              disabled={ethnicity.length === 0}
+              style={[styles.primaryBtn, { flex: 1 }, ethnicity.length === 0 && styles.btnDisabled]}
+            >
+              <Text style={styles.primaryBtnText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      {slide >= 2 && (() => {
+        const tipIdx = slide - 2;
+        const isLast = tipIdx === TIPS.length - 1;
+        return (
+          <View style={styles.outerFooter}>
+            <View style={styles.row}>
+              <TouchableOpacity onPress={() => goTo(slide - 1)} style={styles.backBtn}>
+                <Text style={styles.backText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => isLast ? onComplete('male', ethnicity) : goTo(slide + 1)}
+                style={[styles.primaryBtn, { flex: 1 }]}
+              >
+                <Text style={styles.primaryBtnText}>{isLast ? 'Got it' : 'Next'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })()}
     </SafeAreaView>
   );
 }
@@ -386,10 +397,11 @@ export default function OnboardingFlow({ onComplete }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
-  barWrap: { paddingTop: 16, height: 19 },
+  barWrap: { position: 'absolute', top: 16, left: 0, right: 0, paddingHorizontal: 0 },
   slide: { flex: 1, paddingHorizontal: 24 },
   content: { flex: 1, paddingTop: 16 },
   footer: { paddingBottom: 8, paddingTop: 8 },
+  outerFooter: { paddingHorizontal: 24, paddingBottom: 8, paddingTop: 8 },
 
   // Welcome
   welcomeTop: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 16, gap: 14 },
