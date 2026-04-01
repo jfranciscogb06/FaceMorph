@@ -9,7 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@google/generative-ai": "^0.24.1",
+    "@mediapipe/tasks-vision": "^0.10.34",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@vladmandic/face-api": "^1.7.15",
+    "canvas": "^3.2.2",
+    "face-api.js": "^0.22.2",
     "next": "16.2.1",
+    "openai": "^6.33.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -21,6 +29,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }
