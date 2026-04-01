@@ -93,14 +93,14 @@ export async function POST(req: NextRequest) {
     };
 
     // Flip image for symmetry comparison + three parallel AI calls
-    const flippedBase64 = await flipImageHorizontal(base64, mediaType);
+    const flippedBase64 = await flipImageHorizontal(base64Data, mediaType);
 
     const [r1, r2, r3, visualSymmetry] = await Promise.all([
       callOnce(),
       callOnce(),
       callOnce(),
       flippedBase64
-        ? scoreSymmetryByImageComparison(client, base64, flippedBase64, mediaType)
+        ? scoreSymmetryByImageComparison(client, base64Data, flippedBase64, mediaType)
         : Promise.resolve(null as number | null),
     ]);
     console.log('[analyze] scores r1:', r1.scores, '| r2:', r2.scores, '| r3:', r3.scores, '| visualSymmetry:', visualSymmetry);
