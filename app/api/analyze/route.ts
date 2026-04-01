@@ -31,9 +31,11 @@ async function scoreSymmetryByImageComparison(
     messages: [{
       role: 'user',
       content: [
+        { type: 'text', text: 'IMAGE 1 — original face:' },
         { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } },
+        { type: 'text', text: 'IMAGE 2 — the exact same face, horizontally flipped (mirror image):' },
         { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${flippedBase64}` } },
-        { type: 'text', text: `These are two images: the original face and its horizontally mirrored version. Compare them visually and score facial symmetry on a 1–10 scale (10 = perfectly identical left/right halves, 1 = extremely asymmetric). Consider the overall impression — minor natural asymmetry is normal and should score 6–8. Only reply with a single number like 7.2` },
+        { type: 'text', text: 'You are looking at the same face and its mirror flip. How similar are the two sides? Score facial symmetry 1–10 (10 = left and right halves are nearly identical, 1 = very asymmetric). All human faces have some natural asymmetry — a score of 6–8 is normal, 8+ means notably symmetric, below 5 means clearly asymmetric. Reply with a single decimal number only, e.g. 7.4' },
       ],
     }],
   });
