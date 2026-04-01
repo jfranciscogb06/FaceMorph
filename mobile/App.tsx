@@ -29,6 +29,7 @@ export default function App() {
   const [state, setState] = useState<AppState>(initial);
   const [landmarksLoading, setLandmarksLoading] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+  const [freshScan, setFreshScan] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -95,6 +96,7 @@ export default function App() {
       const imageDataUrl = `data:image/jpeg;base64,${state.photoBase64}`;
       const result = await analyzePhoto(imageDataUrl, state.gender, state.ethnicity, lm);
       update({ result, step: 'home' });
+      setFreshScan(true);
       const scanId = Date.now().toString();
       let savedPhotoUri: string | undefined;
       try {
@@ -229,6 +231,8 @@ export default function App() {
             onNewScan={newScan}
             onDeleteScan={deleteScan}
             onResetApp={resetApp}
+            autoShowLatest={freshScan}
+            onAutoShowConsumed={() => setFreshScan(false)}
           />
         </FadeView>
       )}

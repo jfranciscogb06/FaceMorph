@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { AnalysisResult } from '../lib/types';
 
-const BASE_URL = 'http://172.31.86.101:3000';
+const BASE_URL = 'https://facemorph.onrender.com';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -17,6 +17,7 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   analysisContext?: AnalysisResult | null;
+  initialMessage?: string;
 }
 
 const SUGGESTIONS = [
@@ -26,18 +27,31 @@ const SUGGESTIONS = [
   'What grooming habits should I start?',
 ];
 
-export default function ChatModal({ visible, onClose, analysisContext }: Props) {
+export default function ChatModal({ visible, onClose, analysisContext, initialMessage }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+  const didAutoSend = useRef(false);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardWillShow', e => setKeyboardHeight(e.endCoordinates.height));
     const hide = Keyboard.addListener('keyboardWillHide', () => setKeyboardHeight(0));
     return () => { show.remove(); hide.remove(); };
   }, []);
+
+  useEffect(() => {
+    if (visible && initialMessage && !didAutoSend.current) {
+      didAutoSend.current = true;
+      send(initialMessage);
+    }
+    if (!visible) {
+      didAutoSend.current = false;
+      setMessages([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, initialMessage]);
 
   const send = async (text?: string) => {
     const content = (text ?? input).trim();

@@ -21,6 +21,15 @@ function scoreColor(s: number) {
   return '#9ca3af';
 }
 
+function lerp(a: number, b: number, t: number) { return Math.round(a + (b - a) * t); }
+function gradientColor(s: number) {
+  const t = Math.max(0, Math.min(1, s / 10));
+  const r = t < 0.5 ? lerp(220, 250, t * 2) : lerp(250, 34, (t - 0.5) * 2);
+  const g = t < 0.5 ? lerp(60, 200, t * 2)  : lerp(200, 197, (t - 0.5) * 2);
+  const b = t < 0.5 ? lerp(60, 40, t * 2)   : lerp(40, 94, (t - 0.5) * 2);
+  return `rgb(${r},${g},${b})`;
+}
+
 function tier(s: number): { label: string } {
   if (s >= 9.0) return { label: 'Elite' };
   if (s >= 8.0) return { label: 'High Value' };
@@ -202,17 +211,20 @@ function ResultsDetail({ item, fallbackPhotoUri, onBack, onDelete }: {
         {/* Score grid */}
         <Text style={styles.sectionTitle}>Score Breakdown</Text>
         <View style={styles.scoreGrid}>
-          {Object.entries(r.scores).map(([key, val]) => (
-            <View key={key} style={styles.scoreCell}>
-              <View style={styles.scoreCellTop}>
-                <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
-                <Text style={[styles.scoreCellVal, { color: scoreColor(val as number) }]}>{(val as number).toFixed(1)}</Text>
+          {Object.entries(r.scores).map(([key, val]) => {
+            const color = gradientColor(val as number);
+            return (
+              <View key={key} style={styles.scoreCell}>
+                <View style={styles.scoreCellTop}>
+                  <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
+                  <Text style={[styles.scoreCellVal, { color }]}>{(val as number).toFixed(1)}</Text>
+                </View>
+                <View style={styles.scoreBarBg}>
+                  <View style={[styles.scoreBarFill, { width: `${((val as number) / 10) * 100}%`, backgroundColor: color }]} />
+                </View>
               </View>
-              <View style={styles.scoreBarBg}>
-                <View style={[styles.scoreBarFill, { width: `${((val as number) / 10) * 100}%` }]} />
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {r.strengths.length > 0 && (
@@ -469,10 +481,16 @@ const GENERIC_TIPS = [
 ];
 
 function TipsTab({ history }: { history: ScanHistoryItem[] }) {
+  const [chatInitial, setChatInitial] = useState<string | undefined>(undefined);
   const [showChat, setShowChat] = useState(false);
   const latest = history[0];
   const recs = latest?.result.recommendations ?? [];
   const tips = recs.length >= 3 ? recs : GENERIC_TIPS;
+
+  const openChat = (initial?: string) => {
+    setChatInitial(initial);
+    setShowChat(true);
+  };
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
@@ -481,15 +499,20 @@ function TipsTab({ history }: { history: ScanHistoryItem[] }) {
       )}
 
       {tips.map((rec, i) => (
-        <View key={i} style={styles.tipCard}>
-          <Text style={styles.tipBadgeText}>{CAT_LABELS[rec.category] || rec.category}</Text>
+        <TouchableOpacity
+          key={i}
+          style={styles.tipCard}
+          activeOpacity={0.75}
+          onPress={() => openChat(`Tell me more about ${CAT_LABELS[rec.category] || rec.category}: "${rec.title}". ${rec.description}`)}
+        >
+          <Text style={styles.tipBadgeText}>{CAT_LABELS[rec.category] || rec.category} →</Text>
           <Text style={styles.tipTitle}>{rec.title}</Text>
           <Text style={styles.tipDesc}>{rec.description}</Text>
-        </View>
+        </TouchableOpacity>
       ))}
 
       {latest && (
-        <TouchableOpacity style={styles.askAiBtn} onPress={() => setShowChat(true)} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.askAiBtn} onPress={() => openChat(undefined)} activeOpacity={0.85}>
           <Ionicons name="chatbubble-outline" size={18} color="#fff" />
           <Text style={styles.askAiBtnText}>Ask AI about your results</Text>
         </TouchableOpacity>
@@ -497,7 +520,12 @@ function TipsTab({ history }: { history: ScanHistoryItem[] }) {
 
       <View style={{ height: 20 }} />
       {latest && (
-        <ChatModal visible={showChat} onClose={() => setShowChat(false)} analysisContext={latest.result} />
+        <ChatModal
+          visible={showChat}
+          onClose={() => setShowChat(false)}
+          analysisContext={latest.result}
+          initialMessage={chatInitial}
+        />
       )}
     </ScrollView>
   );
@@ -587,12 +615,19 @@ interface Props {
   onNewScan: () => void;
   onDeleteScan: (id: string) => void;
   onResetApp: () => void;
+  autoShowLatest?: boolean;
+  onAutoShowConsumed?: () => void;
 }
 
-export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp }: Props) {
+export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, autoShowLatest, onAutoShowConsumed }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
-  const [viewing, setViewing] = useState<ScanHistoryItem | null>(null);
+  const [viewing, setViewing] = useState<ScanHistoryItem | null>(autoShowLatest ? (history[0] ?? null) : null);
+
+  useEffect(() => {
+    if (autoShowLatest) onAutoShowConsumed?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const confirmDelete = (id: string) => {
     Alert.alert('Delete scan', 'Remove this scan?', [

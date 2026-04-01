@@ -1,10 +1,14 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity,
   StyleSheet, SafeAreaView, useWindowDimensions,
+  PanResponder, Animated,
 } from 'react-native';
 import ProgressBar from './ProgressBar';
 import { Gender, Ethnicity } from '../lib/types';
+
+const IMG_BEFORE = require('../assets/before.jpg');
+const IMG_AFTER  = require('../assets/after.jpg');
 
 // ─── Tip assets ───────────────────────────────────────────────────────────────
 
@@ -79,15 +83,138 @@ const ETHNICITY_OPTIONS: { value: Ethnicity; label: string }[] = [
   { value: 'white_caucasian',  label: 'White / Caucasian' },
 ];
 
-// Slide indices: 0=welcome, 1=gender, 2=ethnicity, 3-9=tips
-const TOTAL_SLIDES = 3 + TIPS.length;
+// Slide indices: 0=welcome, 1=ethnicity, 2-8=tips
+const TOTAL_SLIDES = 2 + TIPS.length;
 
 function getProgressPct(slide: number): number | null {
   if (slide === 0) return null; // welcome — hide bar
-  if (slide === 1) return 100 / 6;
-  if (slide === 2) return 200 / 6;
-  const tipIdx = slide - 3;
-  return 50 + (tipIdx / (TIPS.length - 1)) * 50;
+  if (slide === 1) return 100 / 5;
+  const tipIdx = slide - 2;
+  return 40 + (tipIdx / (TIPS.length - 1)) * 60;
+}
+
+// ─── Before/After Slider ──────────────────────────────────────────────────────
+
+const SCORE_BEFORE = 4.9;
+const SCORE_AFTER  = 9.1;
+
+function lerp(a: number, b: number, t: number) { return Math.round(a + (b - a) * t); }
+function gradientColor(s: number) {
+  const t = Math.max(0, Math.min(1, s / 10));
+  const r = t < 0.5 ? lerp(220, 250, t * 2) : lerp(250, 34, (t - 0.5) * 2);
+  const g = t < 0.5 ? lerp(60, 200, t * 2)  : lerp(200, 197, (t - 0.5) * 2);
+  const b = t < 0.5 ? lerp(60, 40, t * 2)   : lerp(40, 94, (t - 0.5) * 2);
+  return `rgb(${r},${g},${b})`;
+}
+
+const HANDLE_SIZE = 52;
+const THRESHOLD = 0.35;
+
+function WelcomeSlider({ containerWidth, onComplete }: { containerWidth: number; onComplete: () => void }) {
+  const maxX = containerWidth - HANDLE_SIZE;
+  const posX = useRef(new Animated.Value(0)).current;
+  const lastX = useRef(0);
+  const [score, setScore] = useState(SCORE_BEFORE);
+  const completed = useRef(false);
+
+  // t: 0 → 1 as handle moves left → right
+  // drives both the image divider AND the score
+  const imgDivider = posX.interpolate({ inputRange: [0, maxX], outputRange: [0, containerWidth], extrapolate: 'clamp' });
+  const fillWidth  = posX.interpolate({ inputRange: [0, maxX], outputRange: [HANDLE_SIZE, containerWidth], extrapolate: 'clamp' });
+  const textOpacity = posX.interpolate({ inputRange: [0, maxX * 0.25], outputRange: [1, 0], extrapolate: 'clamp' });
+
+  useEffect(() => {
+    const id = posX.addListener(({ value }) => {
+      const t = Math.max(0, Math.min(1, value / maxX));
+      setScore(Math.round((SCORE_BEFORE + t * (SCORE_AFTER - SCORE_BEFORE)) * 10) / 10);
+    });
+    return () => posX.removeListener(id);
+  }, []);
+
+  // Tease animation — nudges right then springs back
+  const teasing = useRef(false);
+  useEffect(() => {
+    const tease = () => {
+      if (completed.current || teasing.current) return;
+      teasing.current = true;
+      Animated.sequence([
+        Animated.timing(posX, { toValue: maxX * 0.42, duration: 500, useNativeDriver: false }),
+        Animated.timing(posX, { toValue: maxX * 0.18, duration: 300, useNativeDriver: false }),
+        Animated.timing(posX, { toValue: maxX * 0.32, duration: 250, useNativeDriver: false }),
+        Animated.timing(posX, { toValue: 0, duration: 400, useNativeDriver: false }),
+      ]).start(() => { teasing.current = false; lastX.current = 0; });
+    };
+    const first = setTimeout(tease, 1200);
+    const interval = setInterval(tease, 4000);
+    return () => { clearTimeout(first); clearInterval(interval); };
+  }, []);
+
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      if (completed.current) return;
+      teasing.current = false;
+      posX.stopAnimation(v => { lastX.current = v; });
+    },
+    onPanResponderMove: (_, gs) => {
+      if (completed.current) return;
+      posX.setValue(Math.max(0, Math.min(maxX, lastX.current + gs.dx)));
+    },
+    onPanResponderRelease: (_, gs) => {
+      if (completed.current) return;
+      const next = Math.max(0, Math.min(maxX, lastX.current + gs.dx));
+      lastX.current = next;
+      if (next / maxX >= THRESHOLD) {
+        completed.current = true;
+        Animated.timing(posX, { toValue: maxX, duration: 180, useNativeDriver: false }).start(() => onComplete());
+      } else {
+        Animated.spring(posX, { toValue: 0, useNativeDriver: false, friction: 5 }).start();
+        lastX.current = 0;
+      }
+    },
+  })).current;
+
+  const imgH = containerWidth * 1.1;
+
+  return (
+    <View style={{ width: containerWidth, gap: 12 }}>
+      {/* Before/after image — divider controlled by slider below */}
+      <View style={{ width: containerWidth, height: imgH, borderRadius: 16, overflow: 'hidden' }}>
+        <Image source={IMG_BEFORE} style={{ position: 'absolute', width: containerWidth, height: imgH }} resizeMode="cover" />
+        <Animated.View style={{ position: 'absolute', top: 0, left: 0, width: imgDivider, height: imgH, overflow: 'hidden' }}>
+          <Image source={IMG_AFTER} style={{ width: containerWidth, height: imgH }} resizeMode="cover" />
+        </Animated.View>
+        <Animated.View style={{ position: 'absolute', top: 0, bottom: 0, left: imgDivider, width: 2, backgroundColor: '#fff', transform: [{ translateX: -1 }] }} />
+      </View>
+
+      {/* Score */}
+      <View style={{ alignItems: 'center', gap: 2 }}>
+        <Text style={{ fontSize: 32, fontWeight: '800', color: gradientColor(score) }}>
+          {score.toFixed(1)}<Text style={{ fontSize: 17, fontWeight: '500', color: '#6b7280' }}> / 10</Text>
+        </Text>
+      </View>
+
+      {/* Swipe-to-start track */}
+      <View style={{ width: containerWidth, height: HANDLE_SIZE, borderRadius: HANDLE_SIZE / 2, backgroundColor: '#f0f0f0', justifyContent: 'center', overflow: 'hidden' }}>
+        <Animated.View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: fillWidth, backgroundColor: '#111', borderRadius: HANDLE_SIZE / 2 }} />
+        <Animated.Text style={{ position: 'absolute', alignSelf: 'center', fontSize: 15, fontWeight: '600', color: '#9ca3af', opacity: textOpacity }}>
+          Start my transformation
+        </Animated.Text>
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={{
+            position: 'absolute', left: posX,
+            width: HANDLE_SIZE, height: HANDLE_SIZE, borderRadius: HANDLE_SIZE / 2,
+            backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+            shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+          }}
+        >
+          <Text style={{ fontSize: 18, color: '#111' }}>›</Text>
+        </Animated.View>
+      </View>
+    </View>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -100,7 +227,6 @@ export default function OnboardingFlow({ onComplete }: Props) {
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [slide, setSlide] = useState(0);
-  const [gender, setGender] = useState<Gender | null>(null);
   const [ethnicity, setEthnicity] = useState<Ethnicity[]>([]);
 
   function goTo(idx: number) {
@@ -130,54 +256,16 @@ export default function OnboardingFlow({ onComplete }: Props) {
         {/* ── Slide 0: Welcome ─────────────────────────────────────────── */}
         <View style={[styles.slide, { width }]}>
           <View style={styles.welcomeTop}>
-            <View style={styles.iconBox}>
-              <Text style={styles.iconSymbol}>◉</Text>
-            </View>
             <Text style={styles.appName}>FaceMorph</Text>
-            <Text style={styles.tagline}>
-              AI-powered facial analysis.{'\n'}
-              Understand your features.{'\n'}
-              Track your progress.
+            <Text style={[styles.welcomeHeadline, { marginBottom: 8 }]}>
+              <Text style={{ fontWeight: '400' }}>Your face has potential.{'\n'}</Text>unlock it.
             </Text>
-          </View>
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => goTo(1)}>
-              <Text style={styles.primaryBtnText}>Get started</Text>
-            </TouchableOpacity>
+            <WelcomeSlider containerWidth={width - 48} onComplete={() => goTo(1)} />
+            <Text style={styles.disclaimer}>Free to start · Takes 2 minutes</Text>
           </View>
         </View>
 
-        {/* ── Slide 1: Gender ──────────────────────────────────────────── */}
-        <View style={[styles.slide, { width }]}>
-          <View style={styles.content}>
-            <Text style={styles.title}>Select your gender</Text>
-            <Text style={styles.subtitle}>This helps us provide more accurate analysis</Text>
-            <View style={styles.options}>
-              {(['male', 'female'] as Gender[]).map((g) => (
-                <TouchableOpacity
-                  key={g}
-                  onPress={() => setGender(g)}
-                  style={[styles.option, gender === g && styles.optionSelected]}
-                >
-                  <Text style={[styles.optionText, gender === g && styles.optionTextSelected]}>
-                    {g.charAt(0).toUpperCase() + g.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          <View style={styles.footer}>
-            <TouchableOpacity
-              onPress={() => goTo(2)}
-              disabled={!gender}
-              style={[styles.primaryBtn, !gender && styles.btnDisabled]}
-            >
-              <Text style={styles.primaryBtnText}>Continue</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── Slide 2: Ethnicity ───────────────────────────────────────── */}
+        {/* ── Slide 1: Ethnicity ───────────────────────────────────────── */}
         <View style={[styles.slide, { width }]}>
           <View style={styles.content}>
             <Text style={styles.title}>Select your ethnicity</Text>
@@ -204,11 +292,11 @@ export default function OnboardingFlow({ onComplete }: Props) {
           </View>
           <View style={styles.footer}>
             <View style={styles.row}>
-              <TouchableOpacity onPress={() => goTo(1)} style={styles.backBtn}>
+              <TouchableOpacity onPress={() => goTo(0)} style={styles.backBtn}>
                 <Text style={styles.backText}>Back</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => goTo(3)}
+                onPress={() => goTo(2)}
                 disabled={ethnicity.length === 0}
                 style={[styles.primaryBtn, { flex: 1 }, ethnicity.length === 0 && styles.btnDisabled]}
               >
@@ -218,9 +306,9 @@ export default function OnboardingFlow({ onComplete }: Props) {
           </View>
         </View>
 
-        {/* ── Slides 3-9: Tips ─────────────────────────────────────────── */}
+        {/* ── Slides 2-8: Tips ─────────────────────────────────────────── */}
         {TIPS.map((tip, tipIdx) => {
-          const slideIdx = 3 + tipIdx;
+          const slideIdx = 2 + tipIdx;
           const isCombined = 'combinedKey' in tip;
           const isLast = tipIdx === TIPS.length - 1;
 
@@ -278,7 +366,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
                     <Text style={styles.backText}>Back</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => isLast ? onComplete(gender!, ethnicity) : goTo(slideIdx + 1)}
+                    onPress={() => isLast ? onComplete('male', ethnicity) : goTo(slideIdx + 1)}
                     style={[styles.primaryBtn, { flex: 1 }]}
                   >
                     <Text style={styles.primaryBtnText}>{isLast ? 'Got it' : 'Next'}</Text>
@@ -304,11 +392,10 @@ const styles = StyleSheet.create({
   footer: { paddingBottom: 8, paddingTop: 8 },
 
   // Welcome
-  welcomeTop: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20 },
-  iconBox: { width: 100, height: 100, borderRadius: 24, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  iconSymbol: { fontSize: 48, color: '#fff' },
-  appName: { fontSize: 36, fontWeight: '800', color: '#111', letterSpacing: -0.5 },
-  tagline: { fontSize: 17, color: '#6b7280', textAlign: 'center', lineHeight: 26 },
+  welcomeTop: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 16, gap: 14 },
+  appName: { fontSize: 14, fontWeight: '700', color: '#9ca3af', letterSpacing: 2, textTransform: 'uppercase' },
+  welcomeHeadline: { fontSize: 30, fontWeight: '800', color: '#111', textAlign: 'center', lineHeight: 38, letterSpacing: -0.5 },
+  disclaimer: { fontSize: 12, color: '#9ca3af', textAlign: 'center', marginTop: 8 },
 
   // Shared
   title: { fontSize: 26, fontWeight: '700', color: '#111', textAlign: 'center', marginBottom: 8 },

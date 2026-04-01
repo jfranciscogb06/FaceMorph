@@ -1,7 +1,7 @@
 import { AnalysisResult, LandmarkPoint } from './types';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-const BASE_URL = 'https://hostels-bean-interactions-infringement.trycloudflare.com';
+const BASE_URL = 'https://facemorph.onrender.com';
 
 export async function compressImage(uri: string): Promise<{ uri: string; base64: string; width: number; height: number }> {
   const result = await ImageManipulator.manipulateAsync(
