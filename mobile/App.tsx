@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Superwall, { SuperwallOptions } from '@superwall/react-native-superwall';
 import * as FileSystem from 'expo-file-system';
 import { AppState, Gender, Ethnicity, LandmarkPoint, ScanHistoryItem } from './lib/types';
 import { analyzePhoto, detectLandmarks } from './lib/api';
@@ -32,6 +33,12 @@ export default function App() {
   const [freshScan, setFreshScan] = useState(false);
 
   useEffect(() => {
+    // Initialize Superwall
+    const options = new SuperwallOptions();
+    Superwall.configure('pk_SDqCAYiCDeygrOMKwLelu', options);
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
         const [onboarded, historyRaw] = await Promise.all([
@@ -41,7 +48,7 @@ export default function App() {
         const loadedHistory: ScanHistoryItem[] = historyRaw ? JSON.parse(historyRaw) : [];
         setScanHistory(loadedHistory);
         if (onboarded === 'true') {
-          const gender = (await AsyncStorage.getItem(STORAGE_GENDER)) as Gender | null;
+          const gender = ((await AsyncStorage.getItem(STORAGE_GENDER)) ?? 'male') as Gender;
           const ethnicityRaw = await AsyncStorage.getItem(STORAGE_ETHNICITY);
           const ethnicity: Ethnicity[] = ethnicityRaw ? JSON.parse(ethnicityRaw) : [];
           setState((s) => ({ ...s, step: 'home', gender, ethnicity }));
@@ -75,7 +82,7 @@ export default function App() {
       const detected = await detectLandmarks(imageDataUrl);
       update({ landmarks: detected });
     } catch (e) {
-      console.error('Landmark detection error:', e);
+      console.warn('Landmark detection failed, skipping auto-detect:', e);
       update({ landmarks: [] });
     } finally {
       setLandmarksLoading(false);
@@ -90,11 +97,11 @@ export default function App() {
   }
 
   const runAnalysis = useCallback(async (lm: LandmarkPoint[], replaceId: string | null) => {
-    if (!state.photoBase64 || !state.gender) return;
+    if (!state.photoBase64) return;
     update({ step: 'analyzing', error: null, landmarks: lm });
     try {
       const imageDataUrl = `data:image/jpeg;base64,${state.photoBase64}`;
-      const result = await analyzePhoto(imageDataUrl, state.gender, state.ethnicity, lm);
+      const result = await analyzePhoto(imageDataUrl, state.gender ?? 'male', state.ethnicity, lm);
       update({ result, step: 'home' });
       setFreshScan(true);
       const scanId = Date.now().toString();
@@ -128,8 +135,12 @@ export default function App() {
   }, [state.photoBase64, state.gender, state.ethnicity, scanHistory, update]);
 
   const startAnalysis = useCallback(async (finalLandmarks?: LandmarkPoint[]) => {
-    if (!state.photoBase64 || !state.gender) return;
+    if (!state.photoBase64) return;
     const lm = finalLandmarks ?? state.landmarks;
+    const gender: Gender = state.gender ?? 'male';
+
+    // (paywall triggered on blur tap, not here)
+
     const todayScan = scanHistory.find(h => isToday(h.date));
     if (todayScan) {
       Alert.alert(
@@ -175,6 +186,12 @@ export default function App() {
       gender: s.gender,
       ethnicity: s.ethnicity,
     }));
+  }, []);
+
+  const onUnlock = useCallback(async () => {
+    try {
+      await Superwall.shared.register('analysis_gate');
+    } catch {}
   }, []);
 
   const resetApp = useCallback(async () => {
@@ -231,6 +248,7 @@ export default function App() {
             onNewScan={newScan}
             onDeleteScan={deleteScan}
             onResetApp={resetApp}
+            onUnlock={onUnlock}
             autoShowLatest={freshScan}
             onAutoShowConsumed={() => setFreshScan(false)}
           />

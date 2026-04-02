@@ -232,12 +232,18 @@ export default function OnboardingFlow({ onComplete }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   function goTo(idx: number) {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }).start(() => {
+    const fromEthnicity = (slide === 1 && idx === 2) || (slide === 0 && idx === 1);
+    if (fromEthnicity) {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }).start(() => {
+        setSlide(idx);
+        scrollRef.current?.scrollTo({ x: idx * width, animated: false });
+        Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start();
+      });
+    } else {
       if (idx === 0) setSliderKey(k => k + 1);
       setSlide(idx);
       scrollRef.current?.scrollTo({ x: idx * width, animated: false });
-      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start();
-    });
+    }
   }
 
   const pct = getProgressPct(slide);

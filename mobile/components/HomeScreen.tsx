@@ -94,6 +94,31 @@ const MINI_KEYS: { key: keyof ScanHistoryItem['scores']; label: string }[] = [
   { key: 'symmetry', label: 'Sym' },
 ];
 
+// Keys whose label is blurred (value + bar remain visible)
+const BLURRED_SCORE_KEYS = new Set(['symmetry', 'goldenRatio', 'facialThirds', 'skinClarity']);
+
+const BLUR_OFFSETS = [
+  {x:3,y:0},{x:-3,y:0},{x:0,y:3},{x:0,y:-3},
+  {x:2.1,y:2.1},{x:-2.1,y:2.1},{x:2.1,y:-2.1},{x:-2.1,y:-2.1},
+  {x:5,y:0},{x:-5,y:0},{x:0,y:5},{x:0,y:-5},
+  {x:3.5,y:3.5},{x:-3.5,y:3.5},{x:3.5,y:-3.5},{x:-3.5,y:-3.5},
+];
+
+function BlurredText({ children, style }: { children: string; style?: object }) {
+  return (
+    <View style={{ position: 'relative' }}>
+      {BLUR_OFFSETS.map((o, i) => (
+        <Text key={i} style={[style, {
+          position: 'absolute',
+          opacity: 0.07,
+          transform: [{ translateX: o.x }, { translateY: o.y }],
+        }]}>{children}</Text>
+      ))}
+      <Text style={[style, { opacity: 0.07 }]}>{children}</Text>
+    </View>
+  );
+}
+
 // ─── Calendar Strip ───────────────────────────────────────────────────────────
 
 function CalendarStrip({ history, selected, onSelect }: {
@@ -356,10 +381,14 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
           <View style={styles.scoreGrid}>
             {Object.entries(r!.scores).map(([key, val]) => {
               const color = gradientColor(val as number);
+              const blurred = BLURRED_SCORE_KEYS.has(key);
               return (
                 <View key={key} style={styles.scoreCell}>
                   <View style={styles.scoreCellTop}>
-                    <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
+                    {blurred
+                      ? <BlurredText style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</BlurredText>
+                      : <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
+                    }
                     <Text style={[styles.scoreCellVal, { color }]}>{(val as number).toFixed(1)}</Text>
                   </View>
                   <View style={styles.scoreBarBg}>
@@ -374,7 +403,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
           {r!.strengths.length > 0 && (
             <View style={styles.infoCard}>
               <Text style={styles.infoCardTitle}>✓ Strengths</Text>
-              {r!.strengths.map((s, i) => <Text key={i} style={styles.infoItem}>• {s}</Text>)}
+              {r!.strengths.map((s, i) => <BlurredText key={i} style={styles.infoItem}>{`• ${s}`}</BlurredText>)}
             </View>
           )}
 
@@ -382,14 +411,21 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
           {r!.improvements.length > 0 && (
             <View style={[styles.infoCard, { borderColor: '#fde68a' }]}>
               <Text style={styles.infoCardTitle}>↑ Areas to Improve</Text>
-              {r!.improvements.map((s, i) => <Text key={i} style={styles.infoItem}>• {s}</Text>)}
+              {r!.improvements.map((s, i) => <BlurredText key={i} style={styles.infoItem}>{`• ${s}`}</BlurredText>)}
             </View>
           )}
 
           {/* Feature analysis */}
           <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Feature Analysis</Text>
           {r!.detailedAnalysis.map((d, i) => (
-            <FeatureCard key={i} feature={d.feature} score={d.score} observation={d.observation} tip={d.tip} />
+            <View key={i} style={styles.featureCard}>
+              <View style={styles.featureHeader}>
+                <Text style={styles.featureName}>{d.feature}</Text>
+                <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
+              </View>
+              <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
+              <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
+            </View>
           ))}
 
           {/* Recommendations */}
@@ -401,8 +437,8 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
                   <View style={styles.recBadge}>
                     <Text style={styles.recBadgeText}>{CAT_LABELS[rec.category] || rec.category}</Text>
                   </View>
-                  <Text style={styles.recTitle}>{rec.title}</Text>
-                  <Text style={styles.recDesc}>{rec.description}</Text>
+                  <BlurredText style={styles.recTitle}>{rec.title}</BlurredText>
+                  <BlurredText style={styles.recDesc}>{rec.description}</BlurredText>
                 </View>
               ))}
             </>
@@ -413,8 +449,8 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
             <Ionicons name="chatbubble-outline" size={18} color="#fff" />
             <Text style={styles.askAiBtnText}>Ask AI about your results</Text>
           </TouchableOpacity>
-
           <ChatModal visible={showChat} onClose={() => setShowChat(false)} analysisContext={r} />
+
           <View style={{ height: 80 }} />
         </View>
       )}
@@ -693,11 +729,12 @@ interface Props {
   onNewScan: () => void;
   onDeleteScan: (id: string) => void;
   onResetApp: () => void;
+  onUnlock: () => void;
   autoShowLatest?: boolean;
   onAutoShowConsumed?: () => void;
 }
 
-export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, autoShowLatest, onAutoShowConsumed }: Props) {
+export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, onUnlock, autoShowLatest, onAutoShowConsumed }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
   const [viewing, setViewing] = useState<ScanHistoryItem | null>(null);
@@ -932,6 +969,12 @@ const styles = StyleSheet.create({
   infoItem: { color: '#374151', fontSize: 15, marginBottom: 4, lineHeight: 21 },
 
   recCard: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 14 },
+  featureCard: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 14, marginBottom: 10 },
+  featureHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  featureName: { color: '#111', fontWeight: '600', fontSize: 14 },
+  featureScore: { fontWeight: '700', fontSize: 14 },
+  featureObs: { color: '#6b7280', fontSize: 12, marginBottom: 4 },
+  featureTip: { color: '#9ca3af', fontSize: 12 },
   recBadge: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6, backgroundColor: '#f3f4f6' },
   recBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, color: '#6b7280' },
   recTitle: { color: '#111', fontWeight: '600', fontSize: 16, marginBottom: 4 },

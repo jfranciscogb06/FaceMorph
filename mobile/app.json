@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "FaceMorph",
+    "slug": "facemorph",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.facemorph.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,17 +25,29 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.facemorph.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font",
-      ["expo-image-picker", {
-        "photosPermission": "FaceMorph needs access to your photos to analyze your face.",
-        "cameraPermission": "FaceMorph needs camera access to take your photo."
-      }]
-    ]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FaceMorph needs access to your photos to analyze your face.",
+          "cameraPermission": "FaceMorph needs camera access to take your photo."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bac276e5-2685-47f5-aeb1-1dc486ce488e"
+      }
+    }
   }
 }

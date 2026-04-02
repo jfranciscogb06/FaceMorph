@@ -1,25 +1,39 @@
 import path from 'path';
 
+let modelsLoaded = false;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let faceapiInstance: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let canvasPkgInstance: any = null;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ensureModels(): Promise<{ faceapi: any; canvasPkg: any }> {
+  if (!modelsLoaded) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@tensorflow/tfjs-node');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    faceapiInstance = require('@vladmandic/face-api');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    canvasPkgInstance = require('canvas');
+
+    faceapiInstance.env.monkeyPatch({
+      Canvas: canvasPkgInstance.Canvas,
+      Image: canvasPkgInstance.Image,
+      ImageData: canvasPkgInstance.ImageData,
+    });
+
+    const MODEL_PATH = path.join(process.cwd(), 'node_modules/@vladmandic/face-api/model');
+    await faceapiInstance.nets.ssdMobilenetv1.loadFromDisk(MODEL_PATH);
+    await faceapiInstance.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
+    modelsLoaded = true;
+  }
+  return { faceapi: faceapiInstance, canvasPkg: canvasPkgInstance };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function detectFace(base64: string): Promise<any> {
-  // Native modules — loaded at runtime, excluded from bundle via serverExternalPackages
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('@tensorflow/tfjs-node');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const faceapi = require('@vladmandic/face-api');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const canvasPkg = require('canvas');
+  const { faceapi, canvasPkg } = await ensureModels();
   const { createCanvas, loadImage } = canvasPkg;
-
-  faceapi.env.monkeyPatch({
-    Canvas: canvasPkg.Canvas,
-    Image: canvasPkg.Image,
-    ImageData: canvasPkg.ImageData,
-  });
-
-  const MODEL_PATH = path.join(process.cwd(), 'node_modules/@vladmandic/face-api/model');
-  await faceapi.nets.ssdMobilenetv1.loadFromDisk(MODEL_PATH);
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
 
   const buf = Buffer.from(base64, 'base64');
   const img = await loadImage(buf);
