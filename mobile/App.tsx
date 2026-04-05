@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Superwall, { SuperwallOptions } from '@superwall/react-native-superwall';
+import Superwall, { SuperwallOptions, LogLevel, LogScope, PaywallPresentationHandler } from '@superwall/react-native-superwall';
 import * as FileSystem from 'expo-file-system';
 import { AppState, Gender, Ethnicity, LandmarkPoint, ScanHistoryItem } from './lib/types';
 import { analyzePhoto, detectLandmarks } from './lib/api';
@@ -31,11 +31,21 @@ export default function App() {
   const [landmarksLoading, setLandmarksLoading] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   const [freshScan, setFreshScan] = useState(false);
+  const [swReady, setSwReady] = useState(false);
+  const paywallShowing = React.useRef(false);
 
   useEffect(() => {
-    // Initialize Superwall
     const options = new SuperwallOptions();
-    Superwall.configure('pk_SDqCAYiCDeygrOMKwLelu', options);
+    options.logging.level = LogLevel.Debug;
+    options.logging.scopes = [LogScope.All];
+    Superwall.configure({ apiKey: 'pk_SDqCAYiCDeygrOMKwLelu', options })
+      .then(() => {
+        console.log('[SW] configured successfully');
+        setSwReady(true);
+      })
+      .catch((e: Error) => {
+        console.log('[SW] configure FAILED:', e.message);
+      });
   }, []);
 
   useEffect(() => {
@@ -189,10 +199,20 @@ export default function App() {
   }, []);
 
   const onUnlock = useCallback(async () => {
+    if (!swReady || paywallShowing.current) return;
+    paywallShowing.current = true;
     try {
-      await Superwall.shared.register('analysis_gate');
-    } catch {}
-  }, []);
+      const handler = new PaywallPresentationHandler();
+      handler.onPresent((info) => console.log('[SW] paywall presented:', info.name));
+      handler.onSkip((reason) => console.log('[SW] paywall skipped:', JSON.stringify(reason)));
+      handler.onError((err) => console.log('[SW] paywall error:', err));
+      await Superwall.shared.register({ placement: 'analysis_gate', handler });
+    } catch (e) {
+      console.log('[SW] register error:', (e as Error).message);
+    } finally {
+      paywallShowing.current = false;
+    }
+  }, [swReady]);
 
   const resetApp = useCallback(async () => {
     await AsyncStorage.multiRemove([STORAGE_ONBOARDED, STORAGE_GENDER, STORAGE_ETHNICITY, STORAGE_HISTORY]);

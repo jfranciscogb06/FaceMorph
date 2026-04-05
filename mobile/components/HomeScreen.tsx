@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, Image, TouchableOpacity, StyleSheet,
-  Dimensions, Alert, Platform, Modal, StatusBar,
+  Dimensions, Alert, Platform, Modal, StatusBar, Animated, Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import ScoreRing from './ScoreRing';
-import FeatureCard from './FeatureCard';
 import ChatModal from './ChatModal';
 import { ScanHistoryItem } from '../lib/types';
 
@@ -98,25 +98,34 @@ const MINI_KEYS: { key: keyof ScanHistoryItem['scores']; label: string }[] = [
 const BLURRED_SCORE_KEYS = new Set(['symmetry', 'goldenRatio', 'facialThirds', 'skinClarity']);
 
 const BLUR_OFFSETS = [
-  {x:3,y:0},{x:-3,y:0},{x:0,y:3},{x:0,y:-3},
-  {x:2.1,y:2.1},{x:-2.1,y:2.1},{x:2.1,y:-2.1},{x:-2.1,y:-2.1},
-  {x:5,y:0},{x:-5,y:0},{x:0,y:5},{x:0,y:-5},
-  {x:3.5,y:3.5},{x:-3.5,y:3.5},{x:3.5,y:-3.5},{x:-3.5,y:-3.5},
+  // r=2
+  {x:2,y:0},{x:-2,y:0},{x:0,y:2},{x:0,y:-2},
+  {x:1.4,y:1.4},{x:-1.4,y:1.4},{x:1.4,y:-1.4},{x:-1.4,y:-1.4},
+  // r=4
+  {x:4,y:0},{x:-4,y:0},{x:0,y:4},{x:0,y:-4},
+  {x:2.8,y:2.8},{x:-2.8,y:2.8},{x:2.8,y:-2.8},{x:-2.8,y:-2.8},
+  // r=5.5
+  {x:5.5,y:0},{x:-5.5,y:0},{x:0,y:5.5},{x:0,y:-5.5},
+  {x:3.9,y:3.9},{x:-3.9,y:3.9},{x:3.9,y:-3.9},{x:-3.9,y:-3.9},
+  {x:5,y:2},{x:-5,y:2},{x:5,y:-2},{x:-5,y:-2},
+  {x:2,y:5},{x:-2,y:5},{x:2,y:-5},{x:-2,y:-5},
 ];
 
-function BlurredText({ children, style }: { children: string; style?: object }) {
-  return (
+function BlurredText({ children, style, onPress }: { children: string; style?: object; onPress?: () => void }) {
+  const inner = (
     <View style={{ position: 'relative' }}>
       {BLUR_OFFSETS.map((o, i) => (
         <Text key={i} style={[style, {
           position: 'absolute',
-          opacity: 0.07,
+          opacity: 0.045,
           transform: [{ translateX: o.x }, { translateY: o.y }],
         }]}>{children}</Text>
       ))}
-      <Text style={[style, { opacity: 0.07 }]}>{children}</Text>
+      <Text style={[style, { opacity: 0.045 }]}>{children}</Text>
     </View>
   );
+  if (onPress) return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{inner}</TouchableOpacity>;
+  return inner;
 }
 
 // ─── Calendar Strip ───────────────────────────────────────────────────────────
@@ -294,16 +303,83 @@ function ResultsDetail({ item, fallbackPhotoUri, onBack, onDelete }: {
 
 // ─── Home Tab ─────────────────────────────────────────────────────────────────
 
-function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
+function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
   history: ScanHistoryItem[];
   latestPhotoUri: string | null;
   onDeleteScan: (id: string) => void;
+  onUnlock: () => void;
 }) {
   const streak = computeStreak(history);
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [showChat, setShowChat] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+  const [scoreProgress, setScoreProgress] = useState(1);
+  const animProgress = useRef(new Animated.Value(1)).current;
+  const lastAnimTime = useRef<number>(0);
+  const glintX = useRef(new Animated.Value(-200)).current;
+  const glintOpacity = useRef(new Animated.Value(0)).current;
+  const glintX2 = useRef(new Animated.Value(-200)).current;
+  const glintOpacity2 = useRef(new Animated.Value(0)).current;
+  const glintX3 = useRef(new Animated.Value(-200)).current;
+  const glintOpacity3 = useRef(new Animated.Value(0)).current;
+  const gradAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const makeSweep = (x: Animated.Value, op: Animated.Value) => (toX: number) => Animated.parallel([
+      Animated.timing(x, { toValue: toX, duration: 4200, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(op, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(op, { toValue: 1, duration: 3200, useNativeDriver: true }),
+        Animated.timing(op, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+    ]);
+
+    const startLoop = (x: Animated.Value, op: Animated.Value, delay: number) => {
+      const sweep = makeSweep(x, op);
+      setTimeout(() => {
+        Animated.loop(
+          Animated.sequence([
+            sweep(380),
+            Animated.delay(200),
+            sweep(-200),
+            Animated.delay(200),
+          ])
+        ).start();
+      }, delay);
+    };
+
+    startLoop(glintX, glintOpacity, 0);
+    startLoop(glintX2, glintOpacity2, 1500);
+    startLoop(glintX3, glintOpacity3, 3000);
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(gradAnim, { toValue: 1, duration: 2200, useNativeDriver: true }),
+        Animated.timing(gradAnim, { toValue: 0, duration: 2200, useNativeDriver: true }),
+      ])
+    ).start();
+
+    return () => {
+      [glintX, glintX2, glintX3, glintOpacity, glintOpacity2, glintOpacity3, gradAnim].forEach(a => a.stopAnimation());
+    };
+  }, []);
+
+  useEffect(() => {
+    const now = Date.now();
+    if (now - lastAnimTime.current < 60_000) return;
+    lastAnimTime.current = now;
+    animProgress.setValue(0);
+    setScoreProgress(0);
+    const listener = animProgress.addListener(({ value }) => setScoreProgress(value));
+    Animated.timing(animProgress, {
+      toValue: 1,
+      duration: 2400,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    return () => animProgress.removeListener(listener);
+  }, [selectedDate]);
 
   // Build scan map: dateStr → best scan for that day
   const scanMap = new Map<string, ScanHistoryItem>();
@@ -326,10 +402,14 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
   };
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
       {/* Header */}
       <View style={styles.homeHeader}>
-        <Text style={styles.appTitle}>FaceMorph</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+          <Text style={styles.appTitle}>Mogify</Text>
+          <Text style={{ fontSize: 17, color: '#9ca3af', fontWeight: '400' }}>free trial</Text>
+        </View>
         {streak > 0 && (
           <View style={styles.streakBadge}>
             <Text style={styles.streakFire}>🔥</Text>
@@ -363,7 +443,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
               : <View style={[styles.heroPhoto, { backgroundColor: '#f3f4f6' }]} />
             }
             <View style={styles.heroBottom}>
-              <ScoreRing score={r!.overallScore} size={90} />
+              <ScoreRing score={r!.overallScore * scoreProgress} size={90} />
               <View style={{ flex: 1, gap: 4 }}>
                 <View style={styles.tierBadge}>
                   <Text style={styles.tierBadgeText}>{tier(r!.overallScore).label}</Text>
@@ -386,10 +466,10 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
                 <View key={key} style={styles.scoreCell}>
                   <View style={styles.scoreCellTop}>
                     {blurred
-                      ? <BlurredText style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</BlurredText>
+                      ? <BlurredText style={styles.scoreCellLabel} onPress={onUnlock}>{SCORE_LABELS[key] || key}</BlurredText>
                       : <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
                     }
-                    <Text style={[styles.scoreCellVal, { color }]}>{(val as number).toFixed(1)}</Text>
+                    <Text style={[styles.scoreCellVal, { color }]}>{((val as number) * scoreProgress).toFixed(1)}</Text>
                   </View>
                   <View style={styles.scoreBarBg}>
                     <View style={[styles.scoreBarFill, { width: `${((val as number) / 10) * 100}%`, backgroundColor: color }]} />
@@ -401,31 +481,51 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
 
           {/* Strengths */}
           {r!.strengths.length > 0 && (
-            <View style={styles.infoCard}>
+            <LinearGradient colors={['#f9fafb', '#f1f3f5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.infoCard}>
               <Text style={styles.infoCardTitle}>✓ Strengths</Text>
-              {r!.strengths.map((s, i) => <BlurredText key={i} style={styles.infoItem}>{`• ${s}`}</BlurredText>)}
-            </View>
+              {r!.strengths.map((s, i) => <BlurredText key={i} style={styles.infoItem} onPress={onUnlock}>{`• ${s}`}</BlurredText>)}
+            </LinearGradient>
           )}
 
           {/* Improvements */}
           {r!.improvements.length > 0 && (
-            <View style={[styles.infoCard, { borderColor: '#fde68a' }]}>
+            <LinearGradient colors={['#f9fafb', '#f1f3f5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoCard, { borderColor: '#fde68a' }]}>
               <Text style={styles.infoCardTitle}>↑ Areas to Improve</Text>
-              {r!.improvements.map((s, i) => <BlurredText key={i} style={styles.infoItem}>{`• ${s}`}</BlurredText>)}
-            </View>
+              {r!.improvements.map((s, i) => <BlurredText key={i} style={styles.infoItem} onPress={onUnlock}>{`• ${s}`}</BlurredText>)}
+            </LinearGradient>
           )}
 
           {/* Feature analysis */}
           <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Feature Analysis</Text>
           {r!.detailedAnalysis.map((d, i) => (
-            <View key={i} style={styles.featureCard}>
+            <LinearGradient
+              key={i}
+              colors={['#f9fafb', '#f1f3f5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.featureCard}
+            >
               <View style={styles.featureHeader}>
                 <Text style={styles.featureName}>{d.feature}</Text>
                 <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
               </View>
-              <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
-              <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
-            </View>
+              {i < 2 ? (
+                <>
+                  <Text style={styles.featureObs}>{d.observation}</Text>
+                  <Text style={styles.featureTip}>{`Tip: ${d.tip}`}</Text>
+                </>
+              ) : i === 2 ? (
+                <>
+                  <Text style={styles.featureObs}>{d.observation}</Text>
+                  <BlurredText style={styles.featureTip} onPress={onUnlock}>{`Tip: ${d.tip}`}</BlurredText>
+                </>
+              ) : (
+                <>
+                  <BlurredText style={styles.featureObs} onPress={onUnlock}>{d.observation}</BlurredText>
+                  <BlurredText style={styles.featureTip} onPress={onUnlock}>{`Tip: ${d.tip}`}</BlurredText>
+                </>
+              )}
+            </LinearGradient>
           ))}
 
           {/* Recommendations */}
@@ -437,8 +537,8 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
                   <View style={styles.recBadge}>
                     <Text style={styles.recBadgeText}>{CAT_LABELS[rec.category] || rec.category}</Text>
                   </View>
-                  <BlurredText style={styles.recTitle}>{rec.title}</BlurredText>
-                  <BlurredText style={styles.recDesc}>{rec.description}</BlurredText>
+                  <Text style={styles.recTitle}>{rec.title}</Text>
+                  <BlurredText style={styles.recDesc} onPress={onUnlock}>{rec.description}</BlurredText>
                 </View>
               ))}
             </>
@@ -451,7 +551,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
           </TouchableOpacity>
           <ChatModal visible={showChat} onClose={() => setShowChat(false)} analysisContext={r} />
 
-          <View style={{ height: 80 }} />
+          <View style={{ height: 120 }} />
         </View>
       )}
 
@@ -462,6 +562,56 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan }: {
         </TouchableOpacity>
       </Modal>
     </ScrollView>
+
+    {/* Sticky unlock button — bottom right corner */}
+    {r && (
+      <TouchableOpacity style={styles.unlockBanner} onPress={onUnlock} activeOpacity={0.9}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, overflow: 'hidden', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: '#111' }}>
+          {/* Base gradient */}
+          <LinearGradient colors={['#111111', '#333333']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20 }} />
+          {/* Animated overlay gradient that shifts */}
+          <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: gradAnim }}>
+            <LinearGradient colors={['#2a2a2a', '#0d0d0d']} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={{ flex: 1, borderRadius: 20 }} />
+          </Animated.View>
+          <Ionicons name="lock-closed" size={14} color="#fff" />
+          <Text style={styles.unlockBannerTitle}>Full Analysis</Text>
+          <Animated.View style={{
+            position: 'absolute', top: -30, bottom: -30, width: 160,
+            opacity: glintOpacity,
+            transform: [{ translateX: glintX }, { rotate: '25deg' }],
+          }}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0)']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+          <Animated.View style={{
+            position: 'absolute', top: -30, bottom: -30, width: 160,
+            opacity: glintOpacity2,
+            transform: [{ translateX: glintX2 }, { rotate: '-15deg' }],
+          }}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.13)', 'rgba(255,255,255,0)']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+          <Animated.View style={{
+            position: 'absolute', top: -30, bottom: -30, width: 120,
+            opacity: glintOpacity3,
+            transform: [{ translateX: glintX3 }, { rotate: '45deg' }],
+          }}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
+    )}
+    </View>
   );
 }
 
@@ -704,7 +854,7 @@ function ProfileTab({ history, onResetApp }: {
         <Ionicons name="chevron-forward" size={16} color="#d1d5db" />
       </TouchableOpacity>
 
-      <Text style={styles.profileVersion}>FaceMorph v1.0.0</Text>
+      <Text style={styles.profileVersion}>Mogify v1.0.0</Text>
       <View style={{ height: 20 }} />
     </ScrollView>
   );
@@ -774,6 +924,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
             history={history}
             latestPhotoUri={latestPhotoUri}
             onDeleteScan={onDeleteScan}
+            onUnlock={onUnlock}
           />
         )}
         {tab === 'progress' && (
@@ -982,4 +1133,15 @@ const styles = StyleSheet.create({
 
   chatFab: { position: 'absolute', right: 20, backgroundColor: '#111', borderRadius: 26, paddingHorizontal: 20, paddingVertical: 13, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 6 },
   chatFabText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+  unlockBanner: {
+    position: 'absolute', bottom: 14, right: 16,
+    borderRadius: 20,
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 8,
+  },
+  unlockBannerIcon: { fontSize: 13 },
+  unlockBannerTitle: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  unlockBannerSub: { color: '#9ca3af', fontSize: 11, marginTop: 1 },
+  unlockBannerBtn: { backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  unlockBannerBtnText: { color: '#111', fontWeight: '700', fontSize: 11 },
 });

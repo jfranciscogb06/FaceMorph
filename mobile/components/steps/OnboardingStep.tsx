@@ -13,7 +13,7 @@ export default function OnboardingStep({ onDone }: Props) {
           <View style={styles.iconBox}>
             <Text style={styles.iconEmoji}>◉</Text>
           </View>
-          <Text style={styles.appName}>FaceMorph</Text>
+          <Text style={styles.appName}>Mogify</Text>
           <Text style={styles.tagline}>
             AI-powered facial analysis.{'\n'}
             Understand your features.{'\n'}

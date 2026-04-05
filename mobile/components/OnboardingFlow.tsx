@@ -155,7 +155,8 @@ function WelcomeSlider({ containerWidth, onComplete }: { containerWidth: number;
     onPanResponderGrant: () => {
       if (completed.current) return;
       teasing.current = false;
-      posX.stopAnimation(v => { lastX.current = v; });
+      posX.stopAnimation();
+      lastX.current = (posX as any)._value ?? 0;
     },
     onPanResponderMove: (_, gs) => {
       if (completed.current) return;
@@ -263,7 +264,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
         {/* ── Slide 0: Welcome ─────────────────────────────────────────── */}
         <View style={[styles.slide, { width }]}>
           <View style={styles.welcomeTop}>
-            <Text style={styles.appName}>FaceMorph</Text>
+            <Text style={styles.appName}>Mogify</Text>
             <Text style={[styles.welcomeHeadline, { marginBottom: 8 }]}>
               <Text style={{ fontWeight: '400' }}>Your face has potential.{'\n'}</Text>unlock it.
             </Text>
@@ -403,7 +404,7 @@ export default function OnboardingFlow({ onComplete }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
-  barWrap: { position: 'absolute', top: 16, left: 0, right: 0, paddingHorizontal: 0 },
+  barWrap: { position: 'absolute', bottom: 110, left: 0, right: 0 },
   slide: { flex: 1, paddingHorizontal: 24 },
   content: { flex: 1, paddingTop: 16 },
   footer: { paddingBottom: 8, paddingTop: 8 },

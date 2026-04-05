@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FaceMorph",
+    "name": "Mogify",
     "slug": "facemorph",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -39,8 +39,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "FaceMorph needs access to your photos to analyze your face.",
-          "cameraPermission": "FaceMorph needs camera access to take your photo."
+          "photosPermission": "Mogify needs access to your photos to analyze your face.",
+          "cameraPermission": "Mogify needs camera access to take your photo."
         }
       ]
     ],
