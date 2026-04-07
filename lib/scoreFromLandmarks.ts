@@ -110,14 +110,7 @@ export function computeOverallScore(scores: {
     scores.nose         * w.nose         +
     scores.lips         * w.lips         +
     scores.skinClarity  * w.skinClarity;
-  // Aggressive deflation: push high scores down, inflate low scores down too
-  let deflated: number;
-  if (raw <= 4) {
-    deflated = raw * 0.92; // pull low scores slightly lower
-  } else if (raw <= 5) {
-    deflated = raw;
-  } else {
-    deflated = 5 + (raw - 5) * 0.65; // compress everything above 5 hard
-  }
+  // Deflate scores above 5 to prevent score inflation — leave low scores untouched
+  const deflated = raw <= 5 ? raw : 5 + (raw - 5) * 0.75;
   return Math.round(deflated * 10) / 10;
 }
