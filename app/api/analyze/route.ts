@@ -27,7 +27,7 @@ async function scoreSymmetryByImageComparison(
   const res = await client.chat.completions.create({
     model: 'grok-4-1-fast-non-reasoning',
     max_tokens: 50,
-    temperature: 0,
+    temperature: 0.2,
     messages: [{
       role: 'user',
       content: [
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       const res = await client.chat.completions.create({
         model: 'grok-4-1-fast-non-reasoning',
         max_tokens: 2000,
-        temperature: 0,
+        temperature: 0.4,
         messages: [{
           role: 'user',
           content: [

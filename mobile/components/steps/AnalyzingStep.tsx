@@ -31,7 +31,7 @@ export default function AnalyzingStep() {
     // Start bar immediately at first step
     Animated.timing(progressAnim, {
       toValue: (1 / STAGES.length) * MAX_PROGRESS,
-      duration: 600,
+      duration: 300,
       useNativeDriver: false,
     }).start();
 
@@ -40,12 +40,12 @@ export default function AnalyzingStep() {
         const next = i < STAGES.length - 1 ? i + 1 : i;
         Animated.timing(progressAnim, {
           toValue: Math.min(((next + 1) / STAGES.length) * MAX_PROGRESS, MAX_PROGRESS),
-          duration: 800,
+          duration: 400,
           useNativeDriver: false,
         }).start();
         return next;
       });
-    }, 2000);
+    }, 1200);
     return () => clearInterval(interval);
   }, []);
 

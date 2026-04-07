@@ -87,6 +87,12 @@ const SCORE_LABELS: Record<string, string> = {
   eyes: 'Canthal Tilt', nose: 'Nose', lips: 'Lips', skinClarity: 'Glass Skin', facialThirds: 'Face Thirds',
 };
 
+// Map detailedAnalysis feature names → scores object keys so they stay in sync
+const FEATURE_TO_SCORE_KEY: Record<string, string> = {
+  'Eyes': 'eyes', 'Jawline': 'jawline', 'Nose': 'nose',
+  'Lips': 'lips', 'Skin': 'skinClarity',
+};
+
 const MINI_KEYS: { key: keyof ScanHistoryItem['scores']; label: string }[] = [
   { key: 'jawline', label: 'Jaw' },
   { key: 'eyes', label: 'Eyes' },
@@ -273,9 +279,13 @@ function ResultsDetail({ item, fallbackPhotoUri, onBack, onDelete }: {
         )}
 
         <Text style={styles.sectionTitle}>Feature Analysis</Text>
-        {r.detailedAnalysis.map((d, i) => (
-          <FeatureCard key={i} feature={d.feature} score={d.score} observation={d.observation} tip={d.tip} />
-        ))}
+        {r.detailedAnalysis.map((d, i) => {
+          const scoreKey = FEATURE_TO_SCORE_KEY[d.feature];
+          const resolvedScore = scoreKey && r.scores[scoreKey as keyof typeof r.scores] != null
+            ? (r.scores[scoreKey as keyof typeof r.scores] as number)
+            : d.score;
+          return <FeatureCard key={i} feature={d.feature} score={resolvedScore} observation={d.observation} tip={d.tip} />;
+        })}
 
         {r.recommendations.length > 0 && (
           <>
@@ -498,7 +508,12 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
 
           {/* Feature analysis */}
           <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Feature Analysis</Text>
-          {r!.detailedAnalysis.map((d, i) => (
+          {r!.detailedAnalysis.map((d, i) => {
+            const scoreKey = FEATURE_TO_SCORE_KEY[d.feature];
+            const resolvedScore = scoreKey && r!.scores[scoreKey as keyof typeof r.scores] != null
+              ? (r!.scores[scoreKey as keyof typeof r.scores] as number)
+              : d.score;
+            return (
             <LinearGradient
               key={i}
               colors={['#f9fafb', '#f1f3f5']}
@@ -510,7 +525,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
                 <>
                   <View style={styles.featureHeader}>
                     <Text style={styles.featureName}>{d.feature}</Text>
-                    <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
+                    <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
                   </View>
                   <Text style={styles.featureObs}>{d.observation}</Text>
                   <Text style={styles.featureTip}>{`Tip: ${d.tip}`}</Text>
@@ -519,14 +534,15 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
                 <TouchableOpacity onPress={onUnlock} activeOpacity={0.85}>
                   <View style={styles.featureHeader}>
                     <BlurredText style={styles.featureName}>{d.feature}</BlurredText>
-                    <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
+                    <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
                   </View>
                   <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
                   <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
                 </TouchableOpacity>
               )}
             </LinearGradient>
-          ))}
+            );
+          })}
 
           {/* Recommendations */}
           {r!.recommendations.length > 0 && (
