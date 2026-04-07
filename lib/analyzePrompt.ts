@@ -100,12 +100,19 @@ Use the pre-computed measurements above to inform faceShape — do not contradic
 
 Score these five visual metrics on a 1–10 scale with one decimal place. Always compare to the general population of the same gender/ethnicity — not to models or celebrities. Be consistent: the same face should always receive the same score.
 
+Population calibration — follow this strictly:
+• The average person scores 4.5–5.5 on each metric. A score of 5.0 means exactly average for the population.
+• Scores of 7+ require genuinely above-average features (top 30% of population).
+• Scores of 8+ are rare — top 15% of population. Do not give 8+ unless the feature is clearly exceptional.
+• Scores of 9–10 are very rare — top 5%. Reserve for near-ideal features.
+• Most people have at least one feature below 5. Do not round up out of generosity.
+
 Scoring anchors (apply these exactly):
-• jawline — 9-10: extremely sharp, chiseled, textbook definition | 7-8: clearly defined, visible angularity | 5-6: average, slightly soft | 3-4: notably soft, little definition | 1-2: very round/undefined
-• eyes — 9-10: large, almond-shaped, ideal spacing and lift | 7-8: above average shape/size, good spacing | 5-6: average | 3-4: noticeably small, hooded, or close-set | 1-2: significantly below average
-• nose — 9-10: well-proportioned, straight, refined tip | 7-8: minor deviation from ideal but overall good | 5-6: average, no standout issues | 3-4: notable width, asymmetry, or projection | 1-2: significant structural issue
-• lips — 9-10: full, well-defined Cupid's bow, ideal upper-to-lower ratio | 7-8: above average fullness/shape | 5-6: average | 3-4: thin or notably uneven | 1-2: very thin/undefined
-• skinClarity — 9-10: flawless, smooth, even tone | 7-8: clear with very minor texture | 5-6: average texture or mild blemishes | 3-4: visible blemishes, unevenness, or texture | 1-2: significant skin concerns
+• jawline — 9-10: extremely sharp, chiseled, textbook definition | 7-8: clearly defined, visible angularity | 5-6: slightly above average definition | 4-5: average, soft but not notably weak | 3-4: notably soft, little definition | 1-2: very round/undefined
+• eyes — 9-10: large, almond-shaped, ideal spacing and lift | 7-8: above average shape/size, good spacing | 5-6: average shape and size | 4-5: slightly below average | 3-4: noticeably small, hooded, or close-set | 1-2: significantly below average
+• nose — 9-10: well-proportioned, straight, refined tip | 7-8: minor deviation from ideal but overall good | 5-6: average, no standout issues | 4-5: slightly wide, asymmetric, or projected | 3-4: notable width, asymmetry, or projection | 1-2: significant structural issue
+• lips — 9-10: full, well-defined Cupid's bow, ideal upper-to-lower ratio | 7-8: above average fullness/shape | 5-6: average | 4-5: slightly thin or uneven | 3-4: thin or notably uneven | 1-2: very thin/undefined
+• skinClarity — 9-10: flawless, smooth, even tone | 7-8: clear with very minor texture | 5-6: average texture or mild blemishes | 4-5: slightly below average | 3-4: visible blemishes, unevenness, or texture | 1-2: significant skin concerns
 
 The scores inside detailedAnalysis must exactly match the values in the scores object.
 Do not include overallScore — it will be computed from the scores above.

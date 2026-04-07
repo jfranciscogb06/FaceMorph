@@ -110,5 +110,7 @@ export function computeOverallScore(scores: {
     scores.nose         * w.nose         +
     scores.lips         * w.lips         +
     scores.skinClarity  * w.skinClarity;
-  return Math.round(raw * 10) / 10;
+  // Mild deflation: compress scores above 5 to bring average faces down
+  const deflated = raw <= 5 ? raw : 5 + (raw - 5) * 0.82;
+  return Math.round(deflated * 10) / 10;
 }

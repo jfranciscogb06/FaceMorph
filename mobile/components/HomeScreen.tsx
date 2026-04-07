@@ -505,25 +505,31 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
               end={{ x: 1, y: 1 }}
               style={styles.featureCard}
             >
-              <View style={styles.featureHeader}>
-                <Text style={styles.featureName}>{d.feature}</Text>
-                <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
-              </View>
               {i < 2 ? (
                 <>
+                  <View style={styles.featureHeader}>
+                    <Text style={styles.featureName}>{d.feature}</Text>
+                    <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
+                  </View>
                   <Text style={styles.featureObs}>{d.observation}</Text>
                   <Text style={styles.featureTip}>{`Tip: ${d.tip}`}</Text>
                 </>
               ) : i === 2 ? (
                 <>
+                  <View style={styles.featureHeader}>
+                    <Text style={styles.featureName}>{d.feature}</Text>
+                    <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
+                  </View>
                   <Text style={styles.featureObs}>{d.observation}</Text>
                   <BlurredText style={styles.featureTip} onPress={onUnlock}>{`Tip: ${d.tip}`}</BlurredText>
                 </>
               ) : (
-                <>
-                  <BlurredText style={styles.featureObs} onPress={onUnlock}>{d.observation}</BlurredText>
-                  <BlurredText style={styles.featureTip} onPress={onUnlock}>{`Tip: ${d.tip}`}</BlurredText>
-                </>
+                <TouchableOpacity onPress={onUnlock} activeOpacity={0.85}>
+                  <BlurredText style={styles.featureName}>{d.feature}</BlurredText>
+                  <BlurredText style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</BlurredText>
+                  <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
+                  <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
+                </TouchableOpacity>
               )}
             </LinearGradient>
           ))}
