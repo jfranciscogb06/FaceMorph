@@ -505,7 +505,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
               end={{ x: 1, y: 1 }}
               style={styles.featureCard}
             >
-              {i < 2 ? (
+              {i <= 2 ? (
                 <>
                   <View style={styles.featureHeader}>
                     <Text style={styles.featureName}>{d.feature}</Text>
@@ -514,19 +514,12 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
                   <Text style={styles.featureObs}>{d.observation}</Text>
                   <Text style={styles.featureTip}>{`Tip: ${d.tip}`}</Text>
                 </>
-              ) : i === 2 ? (
-                <>
-                  <View style={styles.featureHeader}>
-                    <Text style={styles.featureName}>{d.feature}</Text>
-                    <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
-                  </View>
-                  <Text style={styles.featureObs}>{d.observation}</Text>
-                  <BlurredText style={styles.featureTip} onPress={onUnlock}>{`Tip: ${d.tip}`}</BlurredText>
-                </>
               ) : (
                 <TouchableOpacity onPress={onUnlock} activeOpacity={0.85}>
-                  <BlurredText style={styles.featureName}>{d.feature}</BlurredText>
-                  <BlurredText style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</BlurredText>
+                  <View style={styles.featureHeader}>
+                    <BlurredText style={styles.featureName}>{d.feature}</BlurredText>
+                    <Text style={[styles.featureScore, { color: gradientColor(d.score) }]}>{d.score.toFixed(1)}</Text>
+                  </View>
                   <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
                   <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
                 </TouchableOpacity>
@@ -551,11 +544,10 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
           )}
 
           {/* Ask AI */}
-          <TouchableOpacity style={styles.askAiBtn} onPress={() => setShowChat(true)} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.askAiBtn} onPress={onUnlock} activeOpacity={0.85}>
             <Ionicons name="chatbubble-outline" size={18} color="#fff" />
             <Text style={styles.askAiBtnText}>Ask AI about your results</Text>
           </TouchableOpacity>
-          <ChatModal visible={showChat} onClose={() => setShowChat(false)} analysisContext={r} />
 
           <View style={{ height: 120 }} />
         </View>
@@ -744,7 +736,7 @@ const GENERIC_TIPS = [
   { category: 'exercise', title: 'Body Fat & Definition', description: 'Lowering body fat percentage enhances facial definition and jawline visibility significantly. Aim for 10–15% for males, 18–24% for females.' },
 ];
 
-function TipsTab({ history }: { history: ScanHistoryItem[] }) {
+function TipsTab({ history, onUnlock }: { history: ScanHistoryItem[]; onUnlock: () => void }) {
   const [chatInitial, setChatInitial] = useState<string | undefined>(undefined);
   const [showChat, setShowChat] = useState(false);
   const latest = history[0];
@@ -779,7 +771,7 @@ function TipsTab({ history }: { history: ScanHistoryItem[] }) {
       ))}
 
       {latest && (
-        <TouchableOpacity style={styles.askAiBtn} onPress={() => openChat(undefined)} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.askAiBtn} onPress={onUnlock} activeOpacity={0.85}>
           <Ionicons name="chatbubble-outline" size={18} color="#fff" />
           <Text style={styles.askAiBtnText}>Ask AI about your results</Text>
         </TouchableOpacity>
@@ -941,7 +933,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
             onDeleteScan={onDeleteScan}
           />
         )}
-        {tab === 'tips' && <TipsTab history={history} />}
+        {tab === 'tips' && <TipsTab history={history} onUnlock={onUnlock} />}
         {tab === 'profile' && <ProfileTab history={history} onResetApp={onResetApp} />}
       </View>
 
@@ -953,7 +945,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
             <TouchableOpacity
               key={t.id}
               style={styles.tabBtn}
-              onPress={() => setTab(t.id)}
+              onPress={() => t.id === 'tips' ? onUnlock() : setTab(t.id)}
               activeOpacity={0.7}
             >
               <View style={[styles.tabBtnInner, active && styles.tabBtnActive]}>
