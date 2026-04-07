@@ -32,11 +32,12 @@ function gradientColor(s: number) {
 
 function tier(s: number): { label: string } {
   if (s >= 9.0) return { label: 'Gigachad' };
-  if (s >= 8.0) return { label: 'High Tier' };
-  if (s >= 7.0) return { label: 'Looksmaxxed' };
-  if (s >= 6.0) return { label: 'Mid Tier' };
-  if (s >= 5.0) return { label: 'Softmaxxing' };
-  return               { label: 'Hardmaxx' };
+  if (s >= 8.0) return { label: 'Chad' };
+  if (s >= 7.0) return { label: 'Chadlite' };
+  if (s >= 6.0) return { label: 'HTN' };
+  if (s >= 5.0) return { label: 'MTN' };
+  if (s >= 4.0) return { label: 'LTN' };
+  return               { label: 'Subhuman' };
 }
 
 function isSameDay(a: Date, b: Date) {
