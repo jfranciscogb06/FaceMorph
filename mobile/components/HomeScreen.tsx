@@ -31,12 +31,12 @@ function gradientColor(s: number) {
 }
 
 function tier(s: number): { label: string } {
-  if (s >= 9.0) return { label: 'Elite' };
-  if (s >= 8.0) return { label: 'High Value' };
-  if (s >= 7.0) return { label: 'Above Average' };
-  if (s >= 6.0) return { label: 'Average' };
-  if (s >= 5.0) return { label: 'Developing' };
-  return               { label: 'Early Stage' };
+  if (s >= 9.0) return { label: 'Gigachad' };
+  if (s >= 8.0) return { label: 'High Tier' };
+  if (s >= 7.0) return { label: 'Looksmaxxed' };
+  if (s >= 6.0) return { label: 'Mid Tier' };
+  if (s >= 5.0) return { label: 'Softmaxxing' };
+  return               { label: 'Hardmaxx' };
 }
 
 function isSameDay(a: Date, b: Date) {
@@ -82,8 +82,8 @@ const CAT_LABELS: Record<string, string> = {
 };
 
 const SCORE_LABELS: Record<string, string> = {
-  symmetry: 'Facial Sym.', goldenRatio: 'PHI Ratio', jawline: 'Gonial Angle',
-  eyes: 'Canthal Tilt', nose: 'Nasal Bridge', lips: 'Philtrum', skinClarity: 'Glass Skin', facialThirds: 'Lower Third',
+  symmetry: 'Symmetry', goldenRatio: 'PHI Ratio', jawline: 'Gonial Angle',
+  eyes: 'Canthal Tilt', nose: 'Nose', lips: 'Lips', skinClarity: 'Glass Skin', facialThirds: 'Face Thirds',
 };
 
 const MINI_KEYS: { key: keyof ScanHistoryItem['scores']; label: string }[] = [
