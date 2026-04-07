@@ -82,8 +82,8 @@ const CAT_LABELS: Record<string, string> = {
 };
 
 const SCORE_LABELS: Record<string, string> = {
-  symmetry: 'Symmetry', goldenRatio: 'Golden Ratio', jawline: 'Jawline',
-  eyes: 'Eyes', nose: 'Nose', lips: 'Lips', skinClarity: 'Skin', facialThirds: 'Face Thirds',
+  symmetry: 'Facial Sym.', goldenRatio: 'PHI Ratio', jawline: 'Gonial Angle',
+  eyes: 'Canthal Tilt', nose: 'Nasal Bridge', lips: 'Philtrum', skinClarity: 'Glass Skin', facialThirds: 'Lower Third',
 };
 
 const MINI_KEYS: { key: keyof ScanHistoryItem['scores']; label: string }[] = [
