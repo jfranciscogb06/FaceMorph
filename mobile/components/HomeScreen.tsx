@@ -40,10 +40,12 @@ function tier(s: number): { label: string } {
   return               { label: 'Subhuman' };
 }
 
+function localDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function isSameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() &&
-         a.getMonth() === b.getMonth() &&
-         a.getDate() === b.getDate();
+  return localDateStr(a) === localDateStr(b);
 }
 
 function calendarDays(): Date[] {
@@ -57,13 +59,13 @@ function calendarDays(): Date[] {
 
 function computeStreak(history: ScanHistoryItem[]): number {
   if (!history.length) return 0;
-  const scanDates = new Set(history.map(h => h.date.split('T')[0]));
+  const scanDates = new Set(history.map(h => localDateStr(new Date(h.date))));
   const today = new Date();
   let streak = 0;
   for (let i = 0; i < 365; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    if (scanDates.has(d.toISOString().split('T')[0])) {
+    if (scanDates.has(localDateStr(d))) {
       streak++;
     } else {
       if (i === 0) continue; // allow today to be empty (might scan later)
@@ -148,7 +150,7 @@ function CalendarStrip({ history, selected, onSelect }: {
   // Build map: dateStr → best scan for that day
   const scanMap = new Map<string, ScanHistoryItem>();
   for (const item of history) {
-    const d = item.date.split('T')[0];
+    const d = localDateStr(new Date(item.date));
     if (!scanMap.has(d) || item.overallScore > scanMap.get(d)!.overallScore) {
       scanMap.set(d, item);
     }
@@ -159,7 +161,7 @@ function CalendarStrip({ history, selected, onSelect }: {
   return (
     <View style={styles.calStrip}>
       {days.map((day) => {
-        const dateStr = day.toISOString().split('T')[0];
+        const dateStr = localDateStr(day);
         const scan = scanMap.get(dateStr);
         const isToday = isSameDay(day, today);
         const isSel = dateStr === selected;
@@ -395,7 +397,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
   // Build scan map: dateStr → best scan for that day
   const scanMap = new Map<string, ScanHistoryItem>();
   for (const item of history) {
-    const d = item.date.split('T')[0];
+    const d = localDateStr(new Date(item.date));
     if (!scanMap.has(d) || item.overallScore > scanMap.get(d)!.overallScore) {
       scanMap.set(d, item);
     }
