@@ -474,14 +474,10 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
           <View style={styles.scoreGrid}>
             {Object.entries(r!.scores).map(([key, val]) => {
               const color = gradientColor(val as number);
-              const blurred = BLURRED_SCORE_KEYS.has(key);
               return (
                 <View key={key} style={styles.scoreCell}>
                   <View style={styles.scoreCellTop}>
-                    {blurred
-                      ? <BlurredText style={styles.scoreCellLabel} onPress={onUnlock}>{SCORE_LABELS[key] || key}</BlurredText>
-                      : <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
-                    }
+                    <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
                     <Text style={[styles.scoreCellVal, { color }]}>{((val as number) * scoreProgress).toFixed(1)}</Text>
                   </View>
                   <View style={styles.scoreBarBg}>
@@ -496,11 +492,11 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
           {r!.strengths.length > 0 && (
             <LinearGradient colors={['#f9fafb', '#f1f3f5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.infoCard}>
               <Text style={styles.infoCardTitle}>✓ Strengths</Text>
-              {r!.strengths.map((s, i) => <BlurredText key={i} style={styles.infoItem} onPress={onUnlock}>{`• ${s}`}</BlurredText>)}
+              {r!.strengths.map((s, i) => <Text key={i} style={styles.infoItem}>{`• ${s}`}</Text>)}
             </LinearGradient>
           )}
 
-          {/* Improvements */}
+          {/* Improvements — blurred (paywall gate) */}
           {r!.improvements.length > 0 && (
             <LinearGradient colors={['#f9fafb', '#f1f3f5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoCard, { borderColor: '#fde68a' }]}>
               <Text style={styles.infoCardTitle}>↑ Areas to Improve</Text>
@@ -508,7 +504,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
             </LinearGradient>
           )}
 
-          {/* Feature analysis */}
+          {/* Feature analysis — all visible */}
           <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Feature Analysis</Text>
           {r!.detailedAnalysis.map((d, i) => {
             const scoreKey = FEATURE_TO_SCORE_KEY[d.feature];
@@ -516,37 +512,24 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
               ? (r!.scores[scoreKey as keyof typeof r.scores] as number)
               : d.score;
             return (
-            <LinearGradient
-              key={i}
-              colors={['#f9fafb', '#f1f3f5']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.featureCard}
-            >
-              {i <= 2 ? (
-                <>
-                  <View style={styles.featureHeader}>
-                    <Text style={styles.featureName}>{d.feature}</Text>
-                    <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
-                  </View>
-                  <Text style={styles.featureObs}>{d.observation}</Text>
-                  <Text style={styles.featureTip}>{`Tip: ${d.tip}`}</Text>
-                </>
-              ) : (
-                <TouchableOpacity onPress={onUnlock} activeOpacity={0.85}>
-                  <View style={styles.featureHeader}>
-                    <BlurredText style={styles.featureName}>{d.feature}</BlurredText>
-                    <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
-                  </View>
-                  <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
-                  <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
-                </TouchableOpacity>
-              )}
-            </LinearGradient>
+              <LinearGradient
+                key={i}
+                colors={['#f9fafb', '#f1f3f5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.featureCard}
+              >
+                <View style={styles.featureHeader}>
+                  <Text style={styles.featureName}>{d.feature}</Text>
+                  <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
+                </View>
+                <Text style={styles.featureObs}>{d.observation}</Text>
+                <Text style={styles.featureTip}>{`Tip: ${d.tip}`}</Text>
+              </LinearGradient>
             );
           })}
 
-          {/* Recommendations */}
+          {/* Recommendations — all visible */}
           {r!.recommendations.length > 0 && (
             <>
               <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Recommendations</Text>
@@ -556,7 +539,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
                     <Text style={styles.recBadgeText}>{CAT_LABELS[rec.category] || rec.category}</Text>
                   </View>
                   <Text style={styles.recTitle}>{rec.title}</Text>
-                  <BlurredText style={styles.recDesc} onPress={onUnlock}>{rec.description}</BlurredText>
+                  <Text style={styles.recDesc}>{rec.description}</Text>
                 </View>
               ))}
             </>
