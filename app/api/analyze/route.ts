@@ -63,8 +63,13 @@ export async function POST(req: NextRequest) {
 
     console.log('[analyze] image bytes:', base64Data.length, 'calibration examples:', calibrationExamples?.length ?? 0);
 
+    // Compute objective scores first so they can be passed into the prompt
+    const objScores = (landmarks && landmarks.length >= 8)
+      ? computeObjectiveScores(landmarks)
+      : undefined;
+
     const { buildAnalysisPrompt } = await import('@/lib/analyzePrompt');
-    const prompt = buildAnalysisPrompt(gender, ethnicity || [], landmarks || null);
+    const prompt = buildAnalysisPrompt(gender, ethnicity || [], landmarks || null, objScores);
 
     const calContent = buildCalibrationContent(calibrationExamples || []);
 
@@ -119,34 +124,32 @@ export async function POST(req: NextRequest) {
       return Math.round(((va + vb) / 2) * 10) / 10;
     };
 
-    const aiResult = {
-      ...r1,
-      scores: {
-        jawline:     avg2(r1.scores?.jawline,     r2.scores?.jawline,     4.0),
-        eyes:        avg2(r1.scores?.eyes,        r2.scores?.eyes,        4.0),
-        nose:        avg2(r1.scores?.nose,        r2.scores?.nose,        4.0),
-        lips:        avg2(r1.scores?.lips,        r2.scores?.lips,        4.0),
-        skinClarity: avg2(r1.scores?.skinClarity, r2.scores?.skinClarity, 4.0),
-      },
-    };
-
-    const objScores = (landmarks && landmarks.length >= 8)
-      ? computeObjectiveScores(landmarks)
-      : { symmetry: 4.5, goldenRatio: 4.5, facialThirds: 4.5 };
+    // Fallback obj scores for when no landmarks were provided
+    const fallbackObj = { symmetry: 4.5, goldenRatio: 4.5, facialThirds: 4.5 };
+    const resolvedObj = objScores ?? fallbackObj;
 
     const mergedScores = {
-      symmetry:     objScores.symmetry,
-      goldenRatio:  objScores.goldenRatio,
-      facialThirds: objScores.facialThirds,
-      jawline:      aiResult.scores?.jawline      ?? 4.0,
-      eyes:         aiResult.scores?.eyes         ?? 4.0,
-      nose:         aiResult.scores?.nose         ?? 4.0,
-      lips:         aiResult.scores?.lips         ?? 4.0,
-      skinClarity:  aiResult.scores?.skinClarity  ?? 4.0,
+      // Objective scores: use Claude's output (which was given the exact values) or fall back to computed
+      symmetry:     avg2(r1.scores?.symmetry,     r2.scores?.symmetry,     resolvedObj.symmetry),
+      goldenRatio:  avg2(r1.scores?.goldenRatio,  r2.scores?.goldenRatio,  resolvedObj.goldenRatio),
+      facialThirds: avg2(r1.scores?.facialThirds, r2.scores?.facialThirds, resolvedObj.facialThirds),
+      // Visual scores: averaged across two Claude calls
+      jawline:      avg2(r1.scores?.jawline,      r2.scores?.jawline,      4.0),
+      eyes:         avg2(r1.scores?.eyes,         r2.scores?.eyes,          4.0),
+      nose:         avg2(r1.scores?.nose,         r2.scores?.nose,          4.0),
+      lips:         avg2(r1.scores?.lips,         r2.scores?.lips,          4.0),
+      skinClarity:  avg2(r1.scores?.skinClarity,  r2.scores?.skinClarity,   4.0),
     };
 
+    // Override objective scores with the hard-computed values if landmarks exist — they are exact math
+    if (objScores) {
+      mergedScores.symmetry     = objScores.symmetry;
+      mergedScores.goldenRatio  = objScores.goldenRatio;
+      mergedScores.facialThirds = objScores.facialThirds;
+    }
+
     const result = {
-      ...aiResult,
+      ...r1,
       scores: mergedScores,
       overallScore: computeOverallScore(mergedScores),
     };

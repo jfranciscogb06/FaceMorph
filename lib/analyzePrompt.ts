@@ -85,16 +85,32 @@ function computeMeasurements(landmarks: LandmarkPoint[]): string {
     : '';
 }
 
-export function buildAnalysisPrompt(gender: string, ethnicity: string[], landmarks: LandmarkPoint[] | null): string {
+interface ObjScores { symmetry: number; goldenRatio: number; facialThirds: number; }
+
+export function buildAnalysisPrompt(
+  gender: string,
+  ethnicity: string[],
+  landmarks: LandmarkPoint[] | null,
+  objScores?: ObjScores,
+): string {
   const measurements = landmarks && landmarks.length >= 8
     ? computeMeasurements(landmarks)
     : '';
 
   const ethnicityStr = ethnicity.length > 0 ? ` of ${ethnicity.join('/')} background` : '';
 
+  const objBlock = objScores
+    ? `\n\nMATHEMATICALLY COMPUTED SCORES (from landmark geometry — treat these as ground truth for these three metrics):
+• Symmetry: ${objScores.symmetry.toFixed(1)} — computed from paired landmark deviation across midline (lower asymmetry = higher score)
+• Golden Ratio: ${objScores.goldenRatio.toFixed(1)} — computed from inter-pupillary / cheekbone width ratio vs ideal 0.46
+• Facial Thirds: ${objScores.facialThirds.toFixed(1)} — computed from hairline→brow / brow→nose / nose→chin proportions vs ideal 33/33/33
+
+You must include these exact values in your scores output. Do not override them — they are precise geometric measurements.`
+    : '';
+
   return `You are a brutally honest PSL facial analyst. You do not sugarcoat. You do not compliment mediocre faces. You call it exactly as it is — no politeness bias, no rounding up, no "everyone is beautiful" nonsense. Your job is to give an accurate, cold, data-driven PSL rating that reflects where this person actually stands in the population.
 
-Analyze the photo of a ${gender}${ethnicityStr} and score their facial features on the PSL (looksmaxxing) scale.${measurements}
+Analyze the photo of a ${gender}${ethnicityStr} and score their facial features on the PSL (looksmaxxing) scale.${measurements}${objBlock}
 
 The symmetry, goldenRatio, and facialThirds scores have already been computed mathematically — do NOT score them.
 Use the pre-computed measurements to inform faceShape — do not contradict them.
@@ -210,7 +226,9 @@ MANDATORY RULES — VIOLATING THESE IS WRONG
 
 Write observations first (in _obs), then assign scores that are FORCED BY those observations. Observations must be specific and unflattering where warranted — describe exactly what you see.
 
-Scores in detailedAnalysis must exactly match the values in the scores object.
+For symmetry, goldenRatio, and facialThirds: use the exact values provided in the mathematically computed scores above. Copy them verbatim.
+For jawline, eyes, nose, lips, skinClarity: derive from your visual analysis of the image, following the anchors strictly.
+All scores in detailedAnalysis must exactly match the values in the scores object.
 Do not include overallScore.
 
 Respond with ONLY valid JSON — no prose, no markdown:
@@ -223,6 +241,9 @@ Respond with ONLY valid JSON — no prose, no markdown:
     "skinClarity": "<describe visible texture, pores, blemishes, evenness of tone — be specific>"
   },
   "scores": {
+    "symmetry": <exact value from computed scores above>,
+    "goldenRatio": <exact value from computed scores above>,
+    "facialThirds": <exact value from computed scores above>,
     "jawline": <number 1-10 with one decimal>,
     "eyes": <number 1-10 with one decimal>,
     "nose": <number 1-10 with one decimal>,
