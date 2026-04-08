@@ -85,8 +85,8 @@ export async function POST(req: NextRequest) {
 
       const res = await client.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
-        system: 'You are a brutally honest PSL facial analyst. You never inflate scores. PSL 4 is average — where most people land. PSL 5 is above average and already a compliment. PSL 6+ is genuinely attractive. You score objectively based on bone structure, symmetry, and feature quality. You do not soften scores out of politeness. An unremarkable face is a 4, not a 5. A soft jaw is a 3.5–4, not a 5. You always output valid JSON.',
+        max_tokens: 5000,
+        system: 'You are a brutally honest PSL facial analyst. You never inflate scores. PSL 4 is average — where most people land. PSL 5 is above average and already a compliment. PSL 6+ is genuinely attractive. You score objectively based on bone structure, symmetry, and feature quality. You do not soften scores out of politeness. An unremarkable face is a 4, not a 5. A soft jaw is a 3.5–4, not a 5. You always output valid JSON with no truncation.',
         messages: [{ role: 'user', content: userContent }],
       });
       const text = res.content[0]?.type === 'text' ? res.content[0].text : '';
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       if (!jsonMatch) throw new Error('Non-JSON response: ' + text.slice(0, 300));
 
       // Fix unescaped control characters inside JSON string values
-      const cleaned = jsonMatch[0]
+      let cleaned = jsonMatch[0]
         .replace(/[\u0000-\u001F\u007F]/g, (c) => {
           if (c === '\n') return '\\n';
           if (c === '\r') return '\\r';
@@ -103,11 +103,19 @@ export async function POST(req: NextRequest) {
           return '';
         });
 
+      // If JSON is truncated (no closing brace), attempt to close it
+      if (res.stop_reason === 'max_tokens') {
+        console.warn('[analyze] response hit max_tokens, attempting JSON repair');
+        // Close any open arrays and objects greedily
+        let opens = 0;
+        for (const ch of cleaned) { if (ch === '{') opens++; else if (ch === '}') opens--; }
+        cleaned = cleaned.replace(/,\s*$/, '') + '}'.repeat(Math.max(0, opens));
+      }
+
       let parsed: Record<string, unknown>;
       try {
         parsed = JSON.parse(cleaned);
       } catch {
-        // Last resort: strip everything between string delimiters that looks broken
         console.error('[analyze] JSON parse failed, raw:', cleaned.slice(0, 500));
         throw new Error('Malformed JSON from model');
       }
