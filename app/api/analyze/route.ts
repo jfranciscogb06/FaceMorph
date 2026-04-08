@@ -80,14 +80,31 @@ export async function POST(req: NextRequest) {
 
       const res = await client.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
+        max_tokens: 3000,
         messages: [{ role: 'user', content: userContent }],
       });
       const text = res.content[0]?.type === 'text' ? res.content[0].text : '';
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
       const jsonMatch = stripped.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('Non-JSON response: ' + text.slice(0, 300));
-      const parsed = JSON.parse(jsonMatch[0]);
+
+      // Fix unescaped control characters inside JSON string values
+      const cleaned = jsonMatch[0]
+        .replace(/[\u0000-\u001F\u007F]/g, (c) => {
+          if (c === '\n') return '\\n';
+          if (c === '\r') return '\\r';
+          if (c === '\t') return '\\t';
+          return '';
+        });
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        // Last resort: strip everything between string delimiters that looks broken
+        console.error('[analyze] JSON parse failed, raw:', cleaned.slice(0, 500));
+        throw new Error('Malformed JSON from model');
+      }
       delete parsed._obs;
       return parsed;
     };
