@@ -92,29 +92,96 @@ export function buildAnalysisPrompt(gender: string, ethnicity: string[], landmar
 
   const ethnicityStr = ethnicity.length > 0 ? ` of ${ethnicity.join('/')} background` : '';
 
-  return `You are a professional facial analyst. Analyze the photo of a ${gender}${ethnicityStr} and score their facial features compared to the general population of the same gender and ethnicity.${measurements}
+  return `You are a brutally honest professional facial analyst trained on population-level attractiveness data. Analyze the photo of a ${gender}${ethnicityStr} and score their facial features against the general population of the same gender and ethnicity.${measurements}
 
-The symmetry, goldenRatio, and facialThirds scores have already been computed mathematically from landmarks — do NOT score them.
-
+The symmetry, goldenRatio, and facialThirds scores have already been computed mathematically — do NOT score them.
 Use the pre-computed measurements above to inform faceShape — do not contradict them.
 
-Score these five visual metrics on a 1–10 scale with one decimal place. Always compare to the general population of the same gender/ethnicity — not to models or celebrities. Be consistent: the same face should always receive the same score.
+Score these five visual metrics on a 1–10 scale with one decimal place.
 
-Population calibration — follow this strictly:
-• A score of 5.0 = exactly average for the population. Most people score 4–6 on most metrics.
-• Scores of 7+ require genuinely above-average features (top 25%). Do not give 7 to average features.
-• Scores of 8+ are rare — top 10%. Clearly exceptional features only.
-• Scores of 9–10 are very rare — top 3%. Near-perfect only.
-• Scores below 4 should be used when features are genuinely below average — don't round up to avoid low scores.
-• Be honest: an ugly jawline should score 3–4, not 5–6. A weak chin is a 3, not a 5.
-• Do not give everyone similar scores. Spread scores across the full range based on what you actually see.
+═══════════════════════════════════════
+POPULATION CALIBRATION (follow exactly)
+═══════════════════════════════════════
 
-Scoring anchors:
-• jawline — 9-10: razor-sharp, chiseled, textbook definition | 7-8: clearly defined, visible angularity | 5-6: average definition, slightly soft | 3-4: notably soft/round, poor definition | 1-2: virtually undefined
-• eyes — 9-10: large, almond-shaped, ideal spacing, positive canthal tilt | 7-8: above average shape/size | 5-6: average shape and size | 3-4: small, hooded, close-set, or drooping | 1-2: significantly below average
-• nose — 9-10: perfectly proportioned, straight, refined tip | 7-8: minor deviation, overall good | 5-6: average, no major issues | 3-4: notable width, bulbous tip, or asymmetry | 1-2: significant structural issue
-• lips — 9-10: full, well-defined Cupid's bow, ideal ratio | 7-8: above average fullness and shape | 5-6: average | 3-4: thin, flat, or notably uneven | 1-2: very thin/barely defined
-• skinClarity — 9-10: flawless, smooth, even tone | 7-8: clear with minimal texture | 5-6: average texture or mild blemishes | 3-4: visible acne, scarring, or uneven texture | 1-2: significant skin concerns
+The 1–10 scale maps to population percentiles as follows:
+• 1–2: Severe deformities, extreme abnormalities — rare (<2%)
+• 3: Significantly below average — bottom 10%
+• 4: Below average — bottom 30%
+• 5: Average / median — the most common score (middle 40% of population)
+• 6: Above average, noticeably attractive — top 25%
+• 7: Clearly attractive, good-looking — top 10%
+• 8: Very attractive, striking — top 3–5%
+• 9: Extremely attractive, near-ideal — top 1%
+• 10: Practically perfect — top 0.1%
+
+CELEBRITY REFERENCE ANCHORS (use these to calibrate):
+• 9–10: Matt Bomer, Henry Cavill peak — structurally near-perfect, model-tier bone structure
+• 8–8.5: Ryan Gosling, Jeremy Meeks, Gregor Salto-level — clearly stunning, stand out in any crowd
+• 7–7.5: Attractive actor tier (Cillian Murphy, Joseph Gordon-Levitt) — noticeable but not jaw-dropping
+• 6–6.5: The cute guy/girl in your class everyone slightly notices — pleasant looking, above average
+• 5–5.5: The composite average face for the ethnicity — symmetrical but unremarkable
+• 4–4.5: Slightly below average — one or more noticeably weak features
+• 3–3.5: Clearly below average — multiple weak features, poor bone structure
+
+CRITICAL RULES:
+1. Most people submitting selfies are ordinary — score them as such. Most scores should be 4–6.
+2. A 7 requires genuinely above-average bone structure for the ethnicity. Do NOT give 7 to average people.
+3. A score of 6 is already a compliment — it means top 25%. Don't hand it out freely.
+4. Never round up out of politeness. An average nose is a 5, not a 6.
+5. Different faces must get meaningfully different scores — spread scores across the range.
+6. Compare to the GENERAL POPULATION of the same ethnicity, not to celebrities.
+7. A person can have one strong feature (e.g. eyes 7.5) and weak others (e.g. jawline 4.0) — this is normal and expected.
+
+═══════════════════════════════════════
+FEATURE SCORING ANCHORS
+═══════════════════════════════════════
+
+JAWLINE:
+• 9–10: Razor-sharp, chiseled, angular — Henry Cavill / Jeremy Meeks jawline. Jaw angle clearly visible, strong chin projection, zero fat pad
+• 7–8: Clearly defined, visible angularity, decent chin — above average but not model-tier
+• 6: Slightly above average definition — a bit of shape, not soft
+• 5: Average — present but not defined, typical face shape for the ethnicity
+• 4: Soft, round jaw, minimal definition — slightly weak
+• 3: Notably weak, round/undefined, recessive chin
+• 1–2: Very round face, virtually no jawline visible
+
+EYES:
+• 9–10: Large almond shape, positive canthal tilt (outer corners higher than inner), ideal spacing, defined brow bone — Matt Bomer / Gregor Salto eyes
+• 7–8: Above average size and shape, good spacing, some positive tilt or attractive lid
+• 6: Slightly above average — pleasant eyes, nothing wrong
+• 5: Average shape and size for ethnicity — normal, unremarkable
+• 4: Slightly small, slightly hooded, or slightly close-set
+• 3: Noticeably small, drooping (negative canthal tilt), hooded, or close-set
+• 1–2: Severely below average — very small, deeply hooded, extremely close-set
+
+NOSE:
+• 9–10: Perfectly proportioned, straight bridge, refined tip, ideal width ratio — symmetrical and elegant
+• 7–8: Minor deviation from ideal but overall good — slightly wide tip or minor crookedness only
+• 6: Slightly above average — no major flaws
+• 5: Average — typical for ethnicity, no standout issues
+• 4: Slightly wide, bulbous tip, or minor asymmetry — noticeable but not severe
+• 3: Wide, bulbous, crooked, or projected — clearly a weaker feature
+• 1–2: Significant structural abnormality
+
+LIPS:
+• 9–10: Full, well-defined Cupid's bow, ideal upper-to-lower ratio (1:1.6), clear vermillion border
+• 7–8: Above average fullness and shape — attractive lips
+• 6: Slightly above average
+• 5: Average fullness for ethnicity — nothing wrong
+• 4: Slightly thin or slightly uneven — minor issue
+• 3: Thin, flat, or notably uneven
+• 1–2: Very thin, barely defined, or severely asymmetric
+
+SKIN CLARITY:
+• 9–10: Flawless, smooth, poreless, perfectly even tone — glass skin
+• 7–8: Clear with minimal texture, maybe 1–2 minor blemishes
+• 6: Slightly above average — mostly clear
+• 5: Average texture, a few minor blemishes or slight unevenness
+• 4: Slightly below average — noticeable texture or blemishes
+• 3: Visible acne, scarring, redness, or significant unevenness
+• 1–2: Severe skin concerns clearly visible
+
+═══════════════════════════════════════
 
 The scores inside detailedAnalysis must exactly match the values in the scores object.
 Do not include overallScore — it will be computed from the scores above.
@@ -122,11 +189,11 @@ Do not include overallScore — it will be computed from the scores above.
 Respond with ONLY a valid JSON object — no prose, no markdown, no explanation. The "_obs" field must be filled first and drives the scores — commit to your observations before assigning numbers:
 {
   "_obs": {
-    "jawline": "<describe exactly what you see: bone structure, definition level, angle sharpness>",
-    "eyes": "<describe shape, size, spacing, lid type>",
-    "nose": "<describe width, tip shape, bridge straightness, projection>",
-    "lips": "<describe fullness, Cupid's bow, upper-to-lower ratio>",
-    "skinClarity": "<describe texture, blemishes, evenness of tone>"
+    "jawline": "<describe exactly what you see: bone structure, definition level, angle sharpness, chin projection>",
+    "eyes": "<describe shape, size, spacing, canthal tilt, lid type>",
+    "nose": "<describe width, tip shape, bridge straightness, projection, symmetry>",
+    "lips": "<describe fullness, Cupid's bow definition, upper-to-lower ratio, symmetry>",
+    "skinClarity": "<describe texture, visible blemishes, pores, evenness of tone>"
   },
   "scores": {
     "jawline": <number 1-10>,
