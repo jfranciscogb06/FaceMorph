@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
       const res = await client.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 3000,
+        system: 'You are a brutally honest PSL facial analyst. You never inflate scores. PSL 4 is average — where most people land. PSL 5 is above average and already a compliment. PSL 6+ is genuinely attractive. You score objectively based on bone structure, symmetry, and feature quality. You do not soften scores out of politeness. An unremarkable face is a 4, not a 5. A soft jaw is a 3.5–4, not a 5. You always output valid JSON.',
         messages: [{ role: 'user', content: userContent }],
       });
       const text = res.content[0]?.type === 'text' ? res.content[0].text : '';
@@ -121,27 +122,27 @@ export async function POST(req: NextRequest) {
     const aiResult = {
       ...r1,
       scores: {
-        jawline:     avg2(r1.scores?.jawline,     r2.scores?.jawline,     5.0),
-        eyes:        avg2(r1.scores?.eyes,        r2.scores?.eyes,        5.0),
-        nose:        avg2(r1.scores?.nose,        r2.scores?.nose,        5.0),
-        lips:        avg2(r1.scores?.lips,        r2.scores?.lips,        5.0),
-        skinClarity: avg2(r1.scores?.skinClarity, r2.scores?.skinClarity, 5.0),
+        jawline:     avg2(r1.scores?.jawline,     r2.scores?.jawline,     4.0),
+        eyes:        avg2(r1.scores?.eyes,        r2.scores?.eyes,        4.0),
+        nose:        avg2(r1.scores?.nose,        r2.scores?.nose,        4.0),
+        lips:        avg2(r1.scores?.lips,        r2.scores?.lips,        4.0),
+        skinClarity: avg2(r1.scores?.skinClarity, r2.scores?.skinClarity, 4.0),
       },
     };
 
     const objScores = (landmarks && landmarks.length >= 8)
       ? computeObjectiveScores(landmarks)
-      : { symmetry: 5.5, goldenRatio: 5.5, facialThirds: 5.5 };
+      : { symmetry: 4.5, goldenRatio: 4.5, facialThirds: 4.5 };
 
     const mergedScores = {
       symmetry:     objScores.symmetry,
       goldenRatio:  objScores.goldenRatio,
       facialThirds: objScores.facialThirds,
-      jawline:      aiResult.scores?.jawline      ?? 5.0,
-      eyes:         aiResult.scores?.eyes         ?? 5.0,
-      nose:         aiResult.scores?.nose         ?? 5.0,
-      lips:         aiResult.scores?.lips         ?? 5.0,
-      skinClarity:  aiResult.scores?.skinClarity  ?? 5.0,
+      jawline:      aiResult.scores?.jawline      ?? 4.0,
+      eyes:         aiResult.scores?.eyes         ?? 4.0,
+      nose:         aiResult.scores?.nose         ?? 4.0,
+      lips:         aiResult.scores?.lips         ?? 4.0,
+      skinClarity:  aiResult.scores?.skinClarity  ?? 4.0,
     };
 
     const result = {

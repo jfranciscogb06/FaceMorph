@@ -316,6 +316,11 @@ function ResultsDetail({ item, fallbackPhotoUri, onBack, onDelete }: {
 
 // ─── Home Tab ─────────────────────────────────────────────────────────────────
 
+// Map score key → feature name in detailedAnalysis
+const SCORE_KEY_TO_FEATURE: Record<string, string> = {
+  jawline: 'Jawline', eyes: 'Eyes', nose: 'Nose', lips: 'Lips', skinClarity: 'Skin',
+};
+
 function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
   history: ScanHistoryItem[];
   latestPhotoUri: string | null;
@@ -328,6 +333,8 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
   const [showChat, setShowChat] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   const [scoreProgress, setScoreProgress] = useState(1);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const featureYPositions = useRef<Record<string, number>>({});
   const animProgress = useRef(new Animated.Value(1)).current;
   const lastAnimTime = useRef<number>(0);
   const glintX = useRef(new Animated.Value(-200)).current;
@@ -416,7 +423,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
 
   return (
     <View style={{ flex: 1 }}>
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+    <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
       {/* Header */}
       <View style={styles.homeHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
@@ -474,8 +481,14 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
           <View style={styles.scoreGrid}>
             {Object.entries(r!.scores).map(([key, val]) => {
               const color = gradientColor(val as number);
+              const featureName = SCORE_KEY_TO_FEATURE[key];
+              const canScroll = !!featureName;
+              const onPress = canScroll ? () => {
+                const y = featureYPositions.current[featureName];
+                if (y != null) scrollViewRef.current?.scrollTo({ y, animated: true });
+              } : undefined;
               return (
-                <View key={key} style={styles.scoreCell}>
+                <TouchableOpacity key={key} style={styles.scoreCell} onPress={onPress} activeOpacity={canScroll ? 0.7 : 1} disabled={!canScroll}>
                   <View style={styles.scoreCellTop}>
                     <Text style={styles.scoreCellLabel}>{SCORE_LABELS[key] || key}</Text>
                     <Text style={[styles.scoreCellVal, { color }]}>{((val as number) * scoreProgress).toFixed(1)}</Text>
@@ -483,7 +496,8 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
                   <View style={styles.scoreBarBg}>
                     <View style={[styles.scoreBarFill, { width: `${((val as number) / 10) * 100}%`, backgroundColor: color }]} />
                   </View>
-                </View>
+                  {canScroll && <Text style={styles.scoreCellHint}>↓</Text>}
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -504,7 +518,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
             </LinearGradient>
           )}
 
-          {/* Feature analysis — all visible */}
+          {/* Feature analysis — all blurred */}
           <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Feature Analysis</Text>
           {r!.detailedAnalysis.map((d, i) => {
             const scoreKey = FEATURE_TO_SCORE_KEY[d.feature];
@@ -512,20 +526,23 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
               ? (r!.scores[scoreKey as keyof typeof r.scores] as number)
               : d.score;
             return (
+              <View key={i} onLayout={(e) => { featureYPositions.current[d.feature] = e.nativeEvent.layout.y; }}>
               <LinearGradient
-                key={i}
                 colors={['#f9fafb', '#f1f3f5']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.featureCard}
               >
-                <View style={styles.featureHeader}>
-                  <Text style={styles.featureName}>{d.feature}</Text>
-                  <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
-                </View>
-                <Text style={styles.featureObs}>{d.observation}</Text>
-                <Text style={styles.featureTip}>{`Tip: ${d.tip}`}</Text>
+                <TouchableOpacity onPress={onUnlock} activeOpacity={0.85}>
+                  <View style={styles.featureHeader}>
+                    <Text style={styles.featureName}>{d.feature}</Text>
+                    <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
+                  </View>
+                  <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
+                  <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
+                </TouchableOpacity>
               </LinearGradient>
+              </View>
             );
           })}
 
@@ -1119,6 +1136,7 @@ const styles = StyleSheet.create({
   scoreCellTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   scoreCellLabel: { color: '#6b7280', fontSize: 13 },
   scoreCellVal: { fontWeight: '700', fontSize: 13 },
+  scoreCellHint: { fontSize: 9, color: '#d1d5db', textAlign: 'right', marginTop: 2 },
   scoreBarBg: { height: 3, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' },
   scoreBarFill: { height: 3, borderRadius: 4, backgroundColor: '#111' },
 

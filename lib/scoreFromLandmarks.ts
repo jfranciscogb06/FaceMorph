@@ -19,7 +19,7 @@ export function computeObjectiveScores(landmarks: LandmarkPoint[]): {
   // ── Symmetry ──────────────────────────────────────────────────────────
   // Average relative asymmetry across paired landmarks, as a percentage.
   // Lower % = more symmetric = higher score.
-  let symmetry = 6.0;
+  let symmetry = 4.5;
   const midlineX = lm.left_pupil && lm.right_pupil
     ? (lm.left_pupil.x + lm.right_pupil.x) / 2
     : null;
@@ -52,7 +52,7 @@ export function computeObjectiveScores(landmarks: LandmarkPoint[]): {
 
   // ── Golden Ratio ──────────────────────────────────────────────────────
   // Inter-pupillary distance / cheekbone width vs ideal 0.46.
-  let goldenRatio = 6.0;
+  let goldenRatio = 4.5;
   if (lm.left_pupil && lm.right_pupil && lm.left_cheek && lm.right_cheek) {
     const ipd = Math.abs(lm.right_pupil.x - lm.left_pupil.x);
     const cbw = Math.abs(lm.right_cheek.x - lm.left_cheek.x);
@@ -67,7 +67,7 @@ export function computeObjectiveScores(landmarks: LandmarkPoint[]): {
 
   // ── Facial Thirds ─────────────────────────────────────────────────────
   // Max deviation of any third from the ideal 33.3%.
-  let facialThirds = 6.0;
+  let facialThirds = 4.5;
   if (lm.hairline && lm.left_brow && lm.nose_tip && lm.chin_tip) {
     const total = Math.abs(lm.chin_tip.y - lm.hairline.y);
     if (total > 0) {
@@ -110,7 +110,7 @@ export function computeOverallScore(scores: {
     scores.nose         * w.nose         +
     scores.lips         * w.lips         +
     scores.skinClarity  * w.skinClarity;
-  // Deflate scores above 5 to prevent score inflation — leave low scores untouched
-  const deflated = raw <= 5 ? raw : 5 + (raw - 5) * 0.75;
+  // Deflate scores above 4 to prevent score inflation — PSL 4 = average, scale compresses above that
+  const deflated = raw <= 4 ? raw : 4 + (raw - 4) * 0.72;
   return Math.round(deflated * 10) / 10;
 }
