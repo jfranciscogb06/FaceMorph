@@ -40,12 +40,12 @@ export default function AnalyzingStep() {
         const next = i < STAGES.length - 1 ? i + 1 : i;
         Animated.timing(progressAnim, {
           toValue: Math.min(((next + 1) / STAGES.length) * MAX_PROGRESS, MAX_PROGRESS),
-          duration: 400,
+          duration: 600,
           useNativeDriver: false,
         }).start();
         return next;
       });
-    }, 1200);
+    }, 2800);
     return () => clearInterval(interval);
   }, []);
 
