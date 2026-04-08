@@ -5,11 +5,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Superwall, { SuperwallOptions, LogLevel, LogScope, PaywallPresentationHandler } from '@superwall/react-native-superwall';
 import * as FileSystem from 'expo-file-system';
-import { AppState, Gender, Ethnicity, LandmarkPoint, ScanHistoryItem } from './lib/types';
-import { analyzePhoto, detectLandmarks } from './lib/api';
+import { AppState, Gender, Ethnicity, ScanHistoryItem } from './lib/types';
+import { analyzePhoto } from './lib/api';
 import OnboardingFlow from './components/OnboardingFlow';
 import UploadStep from './components/steps/UploadStep';
-import LandmarkStep from './components/steps/LandmarkStep';
 import AnalyzingStep from './components/steps/AnalyzingStep';
 import HomeScreen from './components/HomeScreen';
 import FadeView from './components/FadeView';
@@ -29,7 +28,6 @@ const initial: AppState = {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<AppState>(initial);
-  const [landmarksLoading, setLandmarksLoading] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   const [freshScan, setFreshScan] = useState(false);
   const [swReady, setSwReady] = useState(false);
@@ -85,21 +83,10 @@ export default function App() {
     update({ step: 'upload', gender, ethnicity });
   }, [update]);
 
-  const goToLandmarks = useCallback(async () => {
+  const goToAnalyzing = useCallback(() => {
     if (!state.photoBase64) return;
-    setLandmarksLoading(true);
-    update({ step: 'landmarks', landmarks: [] });
-    try {
-      const imageDataUrl = `data:image/jpeg;base64,${state.photoBase64}`;
-      const detected = await detectLandmarks(imageDataUrl);
-      update({ landmarks: detected });
-    } catch (e) {
-      console.warn('Landmark detection failed, skipping auto-detect:', e);
-      update({ landmarks: [] });
-    } finally {
-      setLandmarksLoading(false);
-    }
-  }, [state.photoBase64, update]);
+    startAnalysis();
+  }, [state.photoBase64, startAnalysis]);
 
   function isToday(iso: string) {
     const d = new Date(iso), now = new Date();
@@ -108,12 +95,12 @@ export default function App() {
       d.getDate() === now.getDate();
   }
 
-  const runAnalysis = useCallback(async (lm: LandmarkPoint[], replaceId: string | null) => {
+  const runAnalysis = useCallback(async (replaceId: string | null) => {
     if (!state.photoBase64) return;
-    update({ step: 'analyzing', error: null, landmarks: lm });
+    update({ step: 'analyzing', error: null });
     try {
       const imageDataUrl = `data:image/jpeg;base64,${state.photoBase64}`;
-      const result = await analyzePhoto(imageDataUrl, state.gender ?? 'male', state.ethnicity, lm);
+      const result = await analyzePhoto(imageDataUrl, state.gender ?? 'male', state.ethnicity);
       update({ result, step: 'home' });
       setFreshScan(true);
       const scanId = Date.now().toString();
@@ -146,12 +133,8 @@ export default function App() {
     }
   }, [state.photoBase64, state.gender, state.ethnicity, scanHistory, update]);
 
-  const startAnalysis = useCallback(async (finalLandmarks?: LandmarkPoint[]) => {
+  const startAnalysis = useCallback(async () => {
     if (!state.photoBase64) return;
-    const lm = finalLandmarks ?? state.landmarks;
-    const gender: Gender = state.gender ?? 'male';
-
-    // (paywall triggered on blur tap, not here)
 
     const todayScan = scanHistory.find(h => isToday(h.date));
     if (todayScan) {
@@ -160,13 +143,13 @@ export default function App() {
         "You've already scanned today. Replace it with this new scan?",
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Replace', onPress: () => runAnalysis(lm, todayScan.id) },
+          { text: 'Replace', onPress: () => runAnalysis(todayScan.id) },
         ]
       );
       return;
     }
-    runAnalysis(lm, null);
-  }, [state.photoBase64, state.gender, state.landmarks, scanHistory, runAnalysis]);
+    runAnalysis(null);
+  }, [state.photoBase64, scanHistory, runAnalysis]);
 
   const deleteScan = useCallback(async (id: string) => {
     const updated = scanHistory.filter(h => h.id !== id);
@@ -241,23 +224,8 @@ export default function App() {
           <UploadStep
             photoUri={state.photoUri}
             onPhoto={(uri, base64, w, h) => update({ photoUri: uri, photoBase64: base64, photoWidth: w, photoHeight: h })}
-            onNext={goToLandmarks}
+            onNext={goToAnalyzing}
             onBack={() => update({ step: scanHistory.length > 0 ? 'home' : 'gender' })}
-          />
-        </FadeView>
-      )}
-
-      {state.step === 'landmarks' && state.photoUri && (
-        <FadeView>
-          <LandmarkStep
-            photoUri={state.photoUri}
-            photoWidth={state.photoWidth}
-            photoHeight={state.photoHeight}
-            landmarks={state.landmarks}
-            onLandmarksChange={(lm: LandmarkPoint[]) => update({ landmarks: lm })}
-            onNext={(finalLandmarks) => startAnalysis(finalLandmarks)}
-            onBack={() => update({ step: 'upload' })}
-            loading={landmarksLoading}
           />
         </FadeView>
       )}

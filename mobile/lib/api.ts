@@ -61,22 +61,11 @@ export async function analyzePhoto(
   imageDataUrl: string,
   gender: string,
   ethnicity: string[],
-  landmarks: LandmarkPoint[]
 ): Promise<AnalysisResult> {
-  const allExamples = await getCalibrationExamples();
-  const calibrationExamples = pickRepresentativeExamples(allExamples).map(ex => ({
-    label: ex.label,
-    gender: ex.gender,
-    ethnicity: ex.ethnicity,
-    overallScore: ex.overallScore,
-    scores: ex.scores,
-    imageBase64: ex.imageBase64,
-  }));
-
   const response = await fetch(`${BASE_URL}/api/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageDataUrl, gender, ethnicity, landmarks, calibrationExamples }),
+    body: JSON.stringify({ image: imageDataUrl, gender, ethnicity }),
   });
 
   if (!response.ok) {
