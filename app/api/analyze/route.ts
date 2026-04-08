@@ -4,15 +4,53 @@ import { computeObjectiveScores, computeOverallScore } from '@/lib/scoreFromLand
 
 export const maxDuration = 60;
 
+interface CalibrationExample {
+  label: string;
+  gender: string;
+  ethnicity: string;
+  overallScore: number;
+  scores: { jawline: number; eyes: number; nose: number; lips: number; skinClarity: number };
+  imageBase64: string;
+}
+
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+function buildCalibrationContent(examples: CalibrationExample[]): Anthropic.MessageParam['content'] {
+  if (!examples || examples.length === 0) return [];
+
+  const parts: Anthropic.ContentBlockParam[] = [
+    {
+      type: 'text',
+      text: `REFERENCE EXAMPLES — use these as your scoring baseline. Study each face and its known scores carefully before analyzing the target face:\n`,
+    },
+  ];
+
+  for (const ex of examples) {
+    parts.push({
+      type: 'text',
+      text: `Reference face: "${ex.label}" (${ex.gender}, ${ex.ethnicity})\nGround truth scores → Overall: ${ex.overallScore} | Jawline: ${ex.scores.jawline} | Eyes: ${ex.scores.eyes} | Nose: ${ex.scores.nose} | Lips: ${ex.scores.lips} | Skin: ${ex.scores.skinClarity}`,
+    });
+    parts.push({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: ex.imageBase64 },
+    });
+  }
+
+  parts.push({
+    type: 'text',
+    text: `\nNow analyze the TARGET face below. Score it relative to the reference examples above — if it looks better than a reference scored 6.0, score it higher; if worse, score it lower. Be precise and consistent.\n\nTARGET FACE:`,
+  });
+
+  return parts;
+}
 
 export async function POST(req: NextRequest) {
   console.log('[analyze] POST hit, API key present:', !!process.env.ANTHROPIC_API_KEY);
   try {
     const body = await req.json();
-    const { image, gender, ethnicity, landmarks } = body;
+    const { image, gender, ethnicity, landmarks, calibrationExamples } = body;
 
     if (!image || !gender) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -23,25 +61,27 @@ export async function POST(req: NextRequest) {
     const mediaType = match[1] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
     const base64Data = match[2];
 
-    console.log('[analyze] image bytes:', base64Data.length, 'mediaType:', mediaType);
+    console.log('[analyze] image bytes:', base64Data.length, 'calibration examples:', calibrationExamples?.length ?? 0);
 
     const { buildAnalysisPrompt } = await import('@/lib/analyzePrompt');
     const prompt = buildAnalysisPrompt(gender, ethnicity || [], landmarks || null);
 
+    const calContent = buildCalibrationContent(calibrationExamples || []);
+
     const callOnce = async () => {
+      const userContent: Anthropic.ContentBlockParam[] = [
+        ...calContent,
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: mediaType, data: base64Data },
+        },
+        { type: 'text', text: prompt },
+      ];
+
       const res = await client.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: base64Data },
-            },
-            { type: 'text', text: prompt },
-          ],
-        }],
+        messages: [{ role: 'user', content: userContent }],
       });
       const text = res.content[0]?.type === 'text' ? res.content[0].text : '';
       const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
@@ -52,7 +92,6 @@ export async function POST(req: NextRequest) {
       return parsed;
     };
 
-    // Two parallel calls — take the average to reduce single-call variance
     const [r1, r2] = await Promise.all([callOnce(), callOnce()]);
     console.log('[analyze] scores r1:', r1.scores, '| r2:', r2.scores);
 

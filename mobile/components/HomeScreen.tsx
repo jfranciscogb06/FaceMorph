@@ -811,9 +811,10 @@ function TipsTab({ history, onUnlock }: { history: ScanHistoryItem[]; onUnlock: 
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 
-function ProfileTab({ history, onResetApp }: {
+function ProfileTab({ history, onResetApp, onOpenCalibration }: {
   history: ScanHistoryItem[];
   onResetApp: () => void;
+  onOpenCalibration: () => void;
 }) {
   const latest = history[0];
   const streak = computeStreak(history);
@@ -865,6 +866,11 @@ function ProfileTab({ history, onResetApp }: {
 
       {/* Settings */}
       <Text style={styles.sectionTitle}>Settings</Text>
+      <TouchableOpacity style={styles.settingRow} onPress={onOpenCalibration}>
+        <Ionicons name="flask-outline" size={20} color="#111" />
+        <Text style={styles.settingLabel}>AI Calibration</Text>
+        <Ionicons name="chevron-forward" size={16} color="#d1d5db" />
+      </TouchableOpacity>
       <TouchableOpacity style={styles.settingRow} onPress={confirmReset}>
         <Ionicons name="refresh-outline" size={20} color="#ef4444" />
         <Text style={[styles.settingLabel, { color: '#ef4444' }]}>Reset App & Clear Data</Text>
@@ -897,11 +903,12 @@ interface Props {
   onDeleteScan: (id: string) => void;
   onResetApp: () => void;
   onUnlock: () => void;
+  onOpenCalibration: () => void;
   autoShowLatest?: boolean;
   onAutoShowConsumed?: () => void;
 }
 
-export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, onUnlock, autoShowLatest, onAutoShowConsumed }: Props) {
+export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, onUnlock, onOpenCalibration, autoShowLatest, onAutoShowConsumed }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
   const [viewing, setViewing] = useState<ScanHistoryItem | null>(null);
@@ -953,7 +960,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
           />
         )}
         {tab === 'tips' && <TipsTab history={history} onUnlock={onUnlock} />}
-        {tab === 'profile' && <ProfileTab history={history} onResetApp={onResetApp} />}
+        {tab === 'profile' && <ProfileTab history={history} onResetApp={onResetApp} onOpenCalibration={onOpenCalibration} />}
       </View>
 
       {/* Bottom tab bar — matches Cal AI layout */}

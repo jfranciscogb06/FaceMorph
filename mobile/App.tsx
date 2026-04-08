@@ -13,6 +13,7 @@ import LandmarkStep from './components/steps/LandmarkStep';
 import AnalyzingStep from './components/steps/AnalyzingStep';
 import HomeScreen from './components/HomeScreen';
 import FadeView from './components/FadeView';
+import CalibrationScreen from './components/CalibrationScreen';
 
 const STORAGE_ONBOARDED = 'fm_onboarded_v6';
 const STORAGE_GENDER = 'fm_gender';
@@ -32,6 +33,7 @@ export default function App() {
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   const [freshScan, setFreshScan] = useState(false);
   const [swReady, setSwReady] = useState(false);
+  const [showCalibration, setShowCalibration] = useState(false);
   const paywallShowing = React.useRef(false);
 
   useEffect(() => {
@@ -226,6 +228,10 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
 
+      {showCalibration && (
+        <CalibrationScreen onClose={() => setShowCalibration(false)} />
+      )}
+
       {state.step === 'gender' && (
         <OnboardingFlow onComplete={finishOnboarding} />
       )}
@@ -269,6 +275,7 @@ export default function App() {
             onDeleteScan={deleteScan}
             onResetApp={resetApp}
             onUnlock={onUnlock}
+            onOpenCalibration={() => setShowCalibration(true)}
             autoShowLatest={freshScan}
             onAutoShowConsumed={() => setFreshScan(false)}
           />
