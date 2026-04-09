@@ -419,6 +419,7 @@ export interface RawMeasurements {
   lipUpperLowerRatio: number | null;  // upper lip % of total lip
   goldenRatioIPD: number | null;      // IPD / face width
   beautyScore: number;                // Face++ beauty score 0-100
+  [key: string]: number | null;
 }
 
 export function computeAllScores(
