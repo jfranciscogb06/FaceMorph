@@ -81,18 +81,18 @@ function calcEyeAspectRatio(lms: FPLandmarks): number | null {
  * Returns a 0–1 deviation (lower = more symmetric).
  */
 function calcSymmetry(lms: FPLandmarks): number | null {
-  const lEyeC = lm(lms, 'left_eye_center');
-  const rEyeC = lm(lms, 'right_eye_center');
+  const lEyeC = lm(lms, 'left_eye_pupil') ?? lm(lms, 'left_eye_center');
+  const rEyeC = lm(lms, 'right_eye_pupil') ?? lm(lms, 'right_eye_center');
   if (!lEyeC || !rEyeC) return null;
 
   const midX = (lEyeC.x + rEyeC.x) / 2;
 
   const pairs: [string, string][] = [
-    ['left_eye_center', 'right_eye_center'],
+    ['left_eye_pupil', 'right_eye_pupil'],
     ['left_eye_left_corner', 'right_eye_right_corner'],
     ['left_eyebrow_left_corner', 'right_eyebrow_right_corner'],
     ['left_eyebrow_upper_middle', 'right_eyebrow_upper_middle'],
-    ['nose_left_corner', 'nose_right_corner'],
+    ['nose_contour_left5', 'nose_contour_right5'],
     ['mouth_left_corner', 'mouth_right_corner'],
     ['contour_left1', 'contour_right1'],
     ['contour_left5', 'contour_right5'],
@@ -215,8 +215,8 @@ function calcGonialAngle(lms: FPLandmarks): number | null {
  * Ideal: ~0.25 (nose is 1/4 of face width). Wide nose > 0.30 is penalized.
  */
 function calcNoseWidthRatio(lms: FPLandmarks): number | null {
-  const noseL = lm(lms, 'nose_left_corner');
-  const noseR = lm(lms, 'nose_right_corner');
+  const noseL = lm(lms, 'nose_contour_left5') ?? lm(lms, 'nose_left_corner');
+  const noseR = lm(lms, 'nose_contour_right5') ?? lm(lms, 'nose_right_corner');
   const c1L = lm(lms, 'contour_left1');
   const c1R = lm(lms, 'contour_right1');
   const c2L = lm(lms, 'contour_left2');
@@ -267,8 +267,8 @@ function calcLipMetrics(lms: FPLandmarks): { fullnessRatio: number; upperLowerRa
  * Ideal: ~0.46 (IPD is 46% of face width).
  */
 function calcGoldenRatio(lms: FPLandmarks): number | null {
-  const lPupil = lm(lms, 'left_eye_center');
-  const rPupil = lm(lms, 'right_eye_center');
+  const lPupil = lm(lms, 'left_eye_pupil') ?? lm(lms, 'left_eye_center');
+  const rPupil = lm(lms, 'right_eye_pupil') ?? lm(lms, 'right_eye_center');
   const c1L = lm(lms, 'contour_left1');
   const c1R = lm(lms, 'contour_right1');
   const c2L = lm(lms, 'contour_left2');
@@ -385,11 +385,14 @@ function goldenRatioToScore(ratio: number): number {
 }
 
 function skinStatusToScore(skin: FPSkinStatus): number {
-  // health: 0-100 (higher=better), others: 0-100 (lower=better)
-  const healthScore = lerp(skin.health, 0, 100, 1, 10);
-  const acnePenalty = lerp(skin.acne, 0, 100, 0, 5);
-  const stainPenalty = lerp(skin.stain, 0, 100, 0, 2.5);
-  const darkPenalty = lerp(skin.dark_circle, 0, 100, 0, 1.5);
+  // Face++ returns confidence values (0-100), not raw severity — typical clear
+  // skin reads acne ~20-40, stain ~20-50, dark_circle ~20-50.
+  // Only penalise when well above typical baseline (~30).
+  const healthScore = lerp(skin.health, 10, 90, 2, 9);
+  // Penalties only kick in meaningfully above ~40 (clear skin baseline)
+  const acnePenalty  = lerp(Math.max(0, skin.acne - 30),        0, 60, 0, 2.5);
+  const stainPenalty = lerp(Math.max(0, skin.stain - 30),       0, 60, 0, 1.5);
+  const darkPenalty  = lerp(Math.max(0, skin.dark_circle - 30), 0, 60, 0, 1.0);
   return clamp(healthScore - acnePenalty - stainPenalty - darkPenalty, 1, 10);
 }
 
