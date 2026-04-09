@@ -147,7 +147,7 @@ function buildTextPrompt(
 COMPUTED PSL SCORES:
 - Symmetry: ${scores.symmetry} (deviation: ${fmt(m.symmetryDeviation, '', 3)})
 - Golden Ratio: ${scores.goldenRatio} (IPD/face-width: ${fmt(m.goldenRatioIPD)})
-- Facial Thirds: ${scores.facialThirds}
+- Facial Thirds: ${scores.facialThirds} (lower/mid ratio deviation: ${fmt(m.facialThirdsMaxDev)}; 0 = perfect balance)
 - Jawline: ${scores.jawline} (gonial angle: ${fmt(m.gonialAngleDeg, 'deg')} | FWHR: ${fmt(m.fwhr)})
 - Eyes: ${scores.eyes} (canthal tilt: ${fmt(m.canthalTiltDeg, 'deg')} | aspect ratio: ${fmt(m.eyeAspectRatio)})
 - Nose: ${scores.nose} (width ratio: ${fmt(m.noseWidthRatio)}, narrower = more refined; ~0.10 refined, ~0.15 average, >0.20 broad)

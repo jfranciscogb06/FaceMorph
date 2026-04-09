@@ -118,32 +118,25 @@ function calcSymmetry(lms: FPLandmarks): number | null {
 }
 
 /**
- * Facial thirds — hairline:brow:nose:chin should each be ~33% of total height.
- * Returns max deviation from 33% (lower = better balanced).
- * Note: Face++ has no hairline point — we estimate from eyebrow position.
+ * Facial thirds — compares the mid third (brow→nose base) to the lower third (nose base→chin).
+ * Face++ has no hairline, so we skip the upper third entirely.
+ * Uses nose_middle_contour (subnasale/nose base) instead of nose_tip.
+ * Returns |lower/mid - 1.0|: 0 = perfect balance, higher = more imbalanced.
  */
 function calcFacialThirds(lms: FPLandmarks): number | null {
   const lBrow = lm(lms, 'left_eyebrow_upper_middle');
   const rBrow = lm(lms, 'right_eyebrow_upper_middle');
-  const noseTip = lm(lms, 'nose_tip');
+  const noseBase = lm(lms, 'nose_middle_contour') ?? lm(lms, 'nose_tip');
   const chin = lm(lms, 'contour_chin');
 
-  if (!lBrow || !rBrow || !noseTip || !chin) return null;
+  if (!lBrow || !rBrow || !noseBase || !chin) return null;
 
   const browY = (lBrow.y + rBrow.y) / 2;
+  const mid   = Math.abs(noseBase.y - browY);   // brow → nose base
+  const lower = Math.abs(chin.y - noseBase.y);  // nose base → chin
 
-  // Estimate hairline as (brow_to_nose distance) above brow
-  const browToNose = Math.abs(noseTip.y - browY);
-  const hairlineY = browY - browToNose;
-
-  const total = Math.abs(chin.y - hairlineY);
-  if (total <= 0) return null;
-
-  const upper = Math.abs(browY - hairlineY) / total;      // hairline→brow
-  const mid = Math.abs(noseTip.y - browY) / total;        // brow→nose tip
-  const lower = Math.abs(chin.y - noseTip.y) / total;     // nose→chin
-
-  return Math.max(Math.abs(upper - 1 / 3), Math.abs(mid - 1 / 3), Math.abs(lower - 1 / 3));
+  if (mid <= 0) return null;
+  return Math.abs(lower / mid - 1.0); // 0 = perfect, >0 = imbalanced
 }
 
 /**
@@ -325,14 +318,15 @@ function symmetryToScore(deviation: number): number {
   return lerp(pct, 20, 35, 2.5, 1.5);
 }
 
-function facialThirdsToScore(maxDeviation: number): number {
-  // deviation is max abs(third - 0.333)
-  const pct = maxDeviation * 100;
-  if (pct <= 2)   return lerp(pct, 0, 2, 10, 8);
-  if (pct <= 5)   return lerp(pct, 2, 5, 8, 6);
-  if (pct <= 9)   return lerp(pct, 5, 9, 6, 4.5);
-  if (pct <= 15)  return lerp(pct, 9, 15, 4.5, 3);
-  return lerp(pct, 15, 25, 3, 1.5);
+function facialThirdsToScore(deviation: number): number {
+  // deviation = |lower/mid - 1.0| where mid = brow→nose base, lower = nose base→chin
+  // 0 = perfect, 0.10 = 10% imbalance, 0.30 = 30% (long/short lower face)
+  const pct = deviation * 100;
+  if (pct <= 5)  return lerp(pct, 0, 5, 9, 7.5);
+  if (pct <= 12) return lerp(pct, 5, 12, 7.5, 6);
+  if (pct <= 20) return lerp(pct, 12, 20, 6, 4.5);
+  if (pct <= 30) return lerp(pct, 20, 30, 4.5, 3);
+  return           lerp(pct, 30, 50, 3, 1.5);
 }
 
 function fwhrToScore(fwhr: number, gender: 'male' | 'female'): number {
