@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { createCanvas, loadImage } from 'canvas';
 import { detectWithFacePP } from '@/lib/facepp';
 import { computeAllScores, computeOverallScore, deriveFaceShape } from '@/lib/geometricScoring';
 
@@ -89,18 +90,40 @@ export async function POST(req: NextRequest) {
     console.log('[analyze] measurements:', measurements);
     if (nullMetrics.length) console.log('[analyze] NULL metrics (fell to default):', nullMetrics);
 
-    // ── Step 3: Claude text-only analysis ───────────────────────────────────
+    // ── Step 3: Flip image for visual symmetry comparison ───────────────────
+    let flippedBase64: string | null = null;
+    try {
+      const img = await loadImage(`data:image/jpeg;base64,${base64Data}`);
+      const canvas = createCanvas(img.width, img.height);
+      const ctx = canvas.getContext('2d');
+      ctx.translate(img.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0);
+      flippedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+    } catch (e) {
+      console.log('[analyze] image flip failed:', (e as Error).message);
+    }
+
+    // ── Step 4: Claude analysis (vision: original + flipped for symmetry) ───
     const ethnicityStr = ethnicity?.length > 0 ? ` of ${ethnicity.join('/')} background` : '';
     const prompt = buildTextPrompt(gender, ethnicityStr, scores, measurements, faceShape, fpResult.headPose);
+
+    const userContent: Anthropic.MessageParam['content'] = flippedBase64
+      ? [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Data } },
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: flippedBase64 } },
+          { type: 'text', text: prompt + '\n\nThe first image is the original face. The second image is the same face mirrored horizontally. Compare them to assess actual visual symmetry — note any visible differences in feature position, size, or shape between the two.' },
+        ]
+      : prompt;
 
     // Use tool_use to force structured output — guarantees valid JSON always
     const res = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      system: 'You are a direct, honest facial analyst. Write specific observations based on the provided geometric measurements.',
+      system: 'You are a direct, honest facial analyst. Write specific observations based on the provided geometric measurements and visual comparison.',
       tools: [ANALYSIS_TOOL],
       tool_choice: { type: 'tool', name: 'submit_analysis' },
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: userContent }],
     });
 
     const toolUse = res.content.find(b => b.type === 'tool_use') as Anthropic.ToolUseBlock | undefined;
@@ -148,14 +171,14 @@ COMPUTED PSL SCORES:
 - Symmetry: ${scores.symmetry} (deviation: ${fmt(m.symmetryDeviation, '', 3)})
 - Golden Ratio: ${scores.goldenRatio} (IPD/face-width: ${fmt(m.goldenRatioIPD)})
 - Facial Thirds: ${scores.facialThirds} (lower/mid ratio deviation: ${fmt(m.facialThirdsMaxDev)}; 0 = perfect balance)
-- Jawline: ${scores.jawline} (gonial angle: ${fmt(m.gonialAngleDeg, 'deg')} | FWHR: ${fmt(m.fwhr)})
+- Jawline: ${scores.jawline} (gonial angle: ${fmt(m.gonialAngleDeg, 'deg')} | FWHR: ${fmt(m.fwhr)} | projection: ${fmt(m.jawProjection, '', 3)})
 - Eyes: ${scores.eyes} (canthal tilt: ${fmt(m.canthalTiltDeg, 'deg')} | aspect ratio: ${fmt(m.eyeAspectRatio)})
 - Nose: ${scores.nose} (width ratio: ${fmt(m.noseWidthRatio)}, narrower = more refined; ~0.10 refined, ~0.15 average, >0.20 broad)
 - Lips: ${scores.lips} (fullness: ${fmt(m.lipFullnessRatio)} | upper/lower: ${fmt(m.lipUpperLowerRatio)}, ideal 0.38)
 - Skin: ${scores.skinClarity} (Face++ health analysis)
 Face shape: ${faceShape} | Beauty score: ${fmt(m.beautyScore, '/100', 0)}
 
-References: canthal tilt +3 to +5deg = hunter eyes; gonial angle 115-125deg = sharp jaw, 135+ = weak; FWHR 1.9 = ideal male, 1.75 = ideal female; nose ratio 0.24-0.28 = ideal.
+References: canthal tilt +3 to +5deg = hunter eyes; gonial angle 115-125deg = sharp jaw, 135+ = weak; FWHR 1.9 = ideal male, 1.75 = ideal female; jaw projection 0.15+ = defined/visible, 0.05 = recessed; nose ratio 0.24-0.28 = ideal.
 
 Write honest, specific observations referencing the actual numbers. Call out weaknesses directly.`;
 }

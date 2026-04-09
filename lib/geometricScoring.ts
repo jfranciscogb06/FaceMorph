@@ -212,6 +212,44 @@ function calcGonialAngle(lms: FPLandmarks): number | null {
 }
 
 /**
+ * Jaw projection — how much the jaw angle (gonion) sticks out from the ear-to-chin line.
+ * Normalized by face width. Higher = more visible, defined jaw.
+ */
+function calcJawProjection(lms: FPLandmarks): number | null {
+  const earL  = lm(lms, 'contour_left2');
+  const earR  = lm(lms, 'contour_right2');
+  const chinL = lm(lms, 'contour_left14');
+  const chinR = lm(lms, 'contour_right14');
+  if (!earL || !earR || !chinL || !chinR) return null;
+
+  let faceWidth = 0;
+  for (let i = 1; i <= 6; i++) {
+    const l = lm(lms, `contour_left${i}`);
+    const r = lm(lms, `contour_right${i}`);
+    if (l && r) faceWidth = Math.max(faceWidth, Math.abs(r.x - l.x));
+  }
+  if (faceWidth === 0) return null;
+
+  // Perpendicular distance from point p to line a→b
+  const perpDist = (a: { x: number; y: number }, b: { x: number; y: number }, p: { x: number; y: number }) => {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) return 0;
+    return Math.abs(dy * p.x - dx * p.y + b.x * a.y - b.y * a.x) / len;
+  };
+
+  const projs: number[] = [];
+  for (let i = 7; i <= 11; i++) {
+    const l = lm(lms, `contour_left${i}`);
+    const r = lm(lms, `contour_right${i}`);
+    if (l) projs.push(perpDist(earL, chinL, l));
+    if (r) projs.push(perpDist(earR, chinR, r));
+  }
+  if (!projs.length) return null;
+  return Math.max(...projs) / faceWidth;
+}
+
+/**
  * Nose width ratio — nose ala width / bizygomatic face width.
  * Ideal: ~0.25 (nose is 1/4 of face width). Wide nose > 0.30 is penalized.
  */
@@ -351,6 +389,15 @@ function gonialAngleToScore(deg: number): number {
   return             lerp(deg, 158, 168, 1.5, 3);
 }
 
+function jawProjectionToScore(ratio: number): number {
+  // Empirical: ~0.05 = recessed/weak, ~0.10 = average, ~0.15 = defined, ~0.20+ = very projected
+  if (ratio >= 0.20) return lerp(ratio, 0.20, 0.28, 8, 9.5);
+  if (ratio >= 0.15) return lerp(ratio, 0.15, 0.20, 6.5, 8);
+  if (ratio >= 0.10) return lerp(ratio, 0.10, 0.15, 5, 6.5);
+  if (ratio >= 0.06) return lerp(ratio, 0.06, 0.10, 3.5, 5);
+  return lerp(ratio, 0.00, 0.06, 2, 3.5);
+}
+
 function noseWidthToScore(ratio: number): number {
   // Face++ contour1 / max-face-width — empirical range: ~0.09 narrow to ~0.22+ broad.
   // PSL preference: narrower = more refined. Score is monotonically decreasing.
@@ -429,6 +476,7 @@ export interface RawMeasurements {
   facialThirdsMaxDev: number | null;  // 0-1, lower=better
   fwhr: number | null;                // facial width-height ratio
   gonialAngleDeg: number | null;      // jaw sharpness, lower=sharper
+  jawProjection: number | null;       // jaw angle projection / face width, higher=more visible
   noseWidthRatio: number | null;      // nose width / face width
   lipFullnessRatio: number | null;    // lip height / mouth width
   lipUpperLowerRatio: number | null;  // upper lip % of total lip
@@ -450,6 +498,7 @@ export function computeAllScores(
   const thirds = calcFacialThirds(landmarks);
   const fwhr = calcFWHR(landmarks);
   const gonial = calcGonialAngle(landmarks);
+  const jawProj = calcJawProjection(landmarks);
   const noseRatio = calcNoseWidthRatio(landmarks);
   const lipMetrics = calcLipMetrics(landmarks);
   const gr = calcGoldenRatio(landmarks);
@@ -461,6 +510,7 @@ export function computeAllScores(
     facialThirdsMaxDev: thirds,
     fwhr,
     gonialAngleDeg: gonial,
+    jawProjection: jawProj,
     noseWidthRatio: noseRatio,
     lipFullnessRatio: lipMetrics?.fullnessRatio ?? null,
     lipUpperLowerRatio: lipMetrics?.upperLowerRatio ?? null,
@@ -484,10 +534,11 @@ export function computeAllScores(
   // Golden ratio
   const grScore = r1(gr !== null ? goldenRatioToScore(gr) : 4.5);
 
-  // Jawline: 60% gonial angle, 40% FWHR (structure)
+  // Jawline: 45% gonial angle, 30% FWHR (structure), 25% projection (visibility)
   const jawFromGonial = gonial ? gonialAngleToScore(gonial) : 4.0;
   const jawFromFWHR = fwhr ? fwhrToScore(fwhr, gender) : 4.0;
-  const jawScore = r1(jawFromGonial * 0.6 + jawFromFWHR * 0.4);
+  const jawFromProj = jawProj !== null ? jawProjectionToScore(jawProj) : 4.0;
+  const jawScore = r1(jawFromGonial * 0.45 + jawFromFWHR * 0.30 + jawFromProj * 0.25);
 
   // Nose
   const noseScore = r1(noseRatio ? noseWidthToScore(noseRatio) : 4.0);
