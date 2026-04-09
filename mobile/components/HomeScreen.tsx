@@ -8,10 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import ScoreRing from './ScoreRing';
 import ChatModal from './ChatModal';
+import FeatureCard from './FeatureCard';
 import { ScanHistoryItem } from '../lib/types';
 
 const SCREEN_W = Dimensions.get('window').width;
-const CALENDAR_DAYS = 7;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,19 +42,6 @@ function tier(s: number): { label: string } {
 
 function localDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function isSameDay(a: Date, b: Date) {
-  return localDateStr(a) === localDateStr(b);
-}
-
-function calendarDays(): Date[] {
-  const today = new Date();
-  return Array.from({ length: CALENDAR_DAYS }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() - (CALENDAR_DAYS - 1 - i));
-    return d;
-  });
 }
 
 function computeStreak(history: ScanHistoryItem[]): number {
@@ -135,70 +122,6 @@ function BlurredText({ children, style, onPress }: { children: string; style?: o
   );
   if (onPress) return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{inner}</TouchableOpacity>;
   return inner;
-}
-
-// ─── Calendar Strip ───────────────────────────────────────────────────────────
-
-function CalendarStrip({ history, selected, onSelect }: {
-  history: ScanHistoryItem[];
-  selected: string;
-  onSelect: (dateStr: string) => void;
-}) {
-  const days = calendarDays();
-  const today = new Date();
-
-  // Build map: dateStr → best scan for that day
-  const scanMap = new Map<string, ScanHistoryItem>();
-  for (const item of history) {
-    const d = localDateStr(new Date(item.date));
-    if (!scanMap.has(d) || item.overallScore > scanMap.get(d)!.overallScore) {
-      scanMap.set(d, item);
-    }
-  }
-
-  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  return (
-    <View style={styles.calStrip}>
-      {days.map((day) => {
-        const dateStr = localDateStr(day);
-        const scan = scanMap.get(dateStr);
-        const isToday = isSameDay(day, today);
-        const isSel = dateStr === selected;
-        const isFuture = day > today;
-
-        return (
-          <TouchableOpacity
-            key={dateStr}
-            style={styles.calDay}
-            onPress={() => onSelect(dateStr)}
-            activeOpacity={0.7}
-            disabled={isFuture}
-          >
-            <Text style={[styles.calDayName, isFuture && { color: '#d1d5db' }]}>
-              {DAY_NAMES[day.getDay()].slice(0, 3)}
-            </Text>
-            <View style={[
-              styles.calCircle,
-              isToday && styles.calCircleToday,
-              isSel && { borderColor: '#111', borderWidth: 2 },
-              isFuture && styles.calCircleFuture,
-            ]}>
-              {scan ? (
-                <View style={[styles.calCircleFill, { backgroundColor: scoreColor(scan.overallScore) }]}>
-                  <Text style={[styles.calDayNum, { color: '#fff' }]}>{day.getDate()}</Text>
-                </View>
-              ) : (
-                <Text style={[styles.calDayNum, isFuture && { color: '#d1d5db' }, isToday && { fontWeight: '700' }]}>
-                  {day.getDate()}
-                </Text>
-              )}
-            </View>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
 }
 
 // ─── Results Detail ───────────────────────────────────────────────────────────
@@ -328,8 +251,6 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
   onUnlock: () => void;
 }) {
   const streak = computeStreak(history);
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState(todayStr);
   const [showChat, setShowChat] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   const [scoreProgress, setScoreProgress] = useState(1);
@@ -399,20 +320,11 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
       useNativeDriver: false,
     }).start();
     return () => animProgress.removeListener(listener);
-  }, [selectedDate]);
+  }, [history[0]?.id]);
 
-  // Build scan map: dateStr → best scan for that day
-  const scanMap = new Map<string, ScanHistoryItem>();
-  for (const item of history) {
-    const d = localDateStr(new Date(item.date));
-    if (!scanMap.has(d) || item.overallScore > scanMap.get(d)!.overallScore) {
-      scanMap.set(d, item);
-    }
-  }
-
-  const selectedScan = scanMap.get(selectedDate) ?? null;
+  const selectedScan = history[0] ?? null;
   const r = selectedScan?.result ?? null;
-  const photo = selectedScan?.photoUri || (selectedDate === todayStr ? latestPhotoUri : null);
+  const photo = selectedScan?.photoUri || latestPhotoUri;
 
   const confirmDelete = (id: string) => {
     Alert.alert('Delete scan', 'Remove this scan?', [
@@ -438,19 +350,10 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
         )}
       </View>
 
-      {/* Calendar strip */}
-      <CalendarStrip history={history} selected={selectedDate} onSelect={setSelectedDate} />
-
       {!selectedScan ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>
-            {selectedDate === todayStr ? 'No scan yet today' : 'No scan on this day'}
-          </Text>
-          <Text style={styles.emptySub}>
-            {selectedDate === todayStr
-              ? 'Tap + to take your first scan and start tracking your progress.'
-              : 'Select another day or tap + to scan today.'}
-          </Text>
+          <Text style={styles.emptyTitle}>No scan yet</Text>
+          <Text style={styles.emptySub}>Tap + to take your first scan and start tracking your progress.</Text>
         </View>
       ) : (
         <View style={{ paddingHorizontal: 16, gap: 12 }}>
@@ -811,10 +714,9 @@ function TipsTab({ history, onUnlock }: { history: ScanHistoryItem[]; onUnlock: 
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 
-function ProfileTab({ history, onResetApp, onOpenCalibration }: {
+function ProfileTab({ history, onResetApp }: {
   history: ScanHistoryItem[];
   onResetApp: () => void;
-  onOpenCalibration: () => void;
 }) {
   const latest = history[0];
   const streak = computeStreak(history);
@@ -866,12 +768,7 @@ function ProfileTab({ history, onResetApp, onOpenCalibration }: {
 
       {/* Settings */}
       <Text style={styles.sectionTitle}>Settings</Text>
-      <TouchableOpacity style={styles.settingRow} onPress={onOpenCalibration}>
-        <Ionicons name="flask-outline" size={20} color="#111" />
-        <Text style={styles.settingLabel}>AI Calibration</Text>
-        <Ionicons name="chevron-forward" size={16} color="#d1d5db" />
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.settingRow} onPress={confirmReset}>
+<TouchableOpacity style={styles.settingRow} onPress={confirmReset}>
         <Ionicons name="refresh-outline" size={20} color="#ef4444" />
         <Text style={[styles.settingLabel, { color: '#ef4444' }]}>Reset App & Clear Data</Text>
         <Ionicons name="chevron-forward" size={16} color="#d1d5db" />
@@ -903,12 +800,11 @@ interface Props {
   onDeleteScan: (id: string) => void;
   onResetApp: () => void;
   onUnlock: () => void;
-  onOpenCalibration: () => void;
   autoShowLatest?: boolean;
   onAutoShowConsumed?: () => void;
 }
 
-export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, onUnlock, onOpenCalibration, autoShowLatest, onAutoShowConsumed }: Props) {
+export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDeleteScan, onResetApp, onUnlock, autoShowLatest, onAutoShowConsumed }: Props) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
   const [viewing, setViewing] = useState<ScanHistoryItem | null>(null);
@@ -960,7 +856,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
           />
         )}
         {tab === 'tips' && <TipsTab history={history} onUnlock={onUnlock} />}
-        {tab === 'profile' && <ProfileTab history={history} onResetApp={onResetApp} onOpenCalibration={onOpenCalibration} />}
+        {tab === 'profile' && <ProfileTab history={history} onResetApp={onResetApp} />}
       </View>
 
       {/* Bottom tab bar — matches Cal AI layout */}
@@ -1005,16 +901,6 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-
-  // Calendar — 7 days fills full width
-  calStrip: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8 },
-  calDay: { flex: 1, alignItems: 'center', gap: 4 },
-  calDayName: { fontSize: 12, color: '#9ca3af', fontWeight: '500' },
-  calCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent' },
-  calCircleToday: { borderColor: '#9ca3af' },
-  calCircleFuture: { opacity: 0.3 },
-  calCircleFill: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  calDayNum: { fontSize: 15, color: '#374151', fontWeight: '500' },
 
   // Home tab
   tabContent: { paddingBottom: 20 },
