@@ -94,7 +94,7 @@ function calcSymmetry(lms: FPLandmarks): number | null {
     ['left_eye_left_corner', 'right_eye_right_corner'],
     ['left_eyebrow_left_corner', 'right_eyebrow_right_corner'],
     ['left_eyebrow_upper_middle', 'right_eyebrow_upper_middle'],
-    ['nose_left_contour5', 'nose_right_contour5'],   // fixed key names
+    ['nose_left_contour1', 'nose_right_contour1'],   // contour1 = outermost ala points
     ['mouth_left_corner', 'mouth_right_corner'],
     ['contour_left3', 'contour_right3'],   // cheekbone level
     ['contour_left9', 'contour_right9'],   // jaw angle level
@@ -182,36 +182,40 @@ function calcFWHR(lms: FPLandmarks): number | null {
  */
 function calcGonialAngle(lms: FPLandmarks): number | null {
   // Face++ 106-point: 16 contour points per side ear→chin
-  // ear ~2, jaw angle ~9, near-chin ~13
+  // Scan jaw angle candidates (7–11) and take the MINIMUM (sharpest) angle
+  // to find the actual gonion rather than relying on a fixed index.
   const earL = lm(lms, 'contour_left2');
-  const jawAngleL = lm(lms, 'contour_left9');
-  const chinAreaL = lm(lms, 'contour_left13');
-
   const earR = lm(lms, 'contour_right2');
-  const jawAngleR = lm(lms, 'contour_right9');
-  const chinAreaR = lm(lms, 'contour_right13');
+  const chinL = lm(lms, 'contour_left14');
+  const chinR = lm(lms, 'contour_right14');
 
-  const calcAngle = (ear: { x: number; y: number }, jaw: { x: number; y: number }, chinArea: { x: number; y: number }) => {
+  if (!earL || !earR || !chinL || !chinR) return null;
+
+  const calcAngle = (ear: { x: number; y: number }, jaw: { x: number; y: number }, chin: { x: number; y: number }) => {
     const v1 = { x: ear.x - jaw.x, y: ear.y - jaw.y };
-    const v2 = { x: chinArea.x - jaw.x, y: chinArea.y - jaw.y };
+    const v2 = { x: chin.x - jaw.x, y: chin.y - jaw.y };
     const dot = v1.x * v2.x + v1.y * v2.y;
     const mag = Math.sqrt(v1.x ** 2 + v1.y ** 2) * Math.sqrt(v2.x ** 2 + v2.y ** 2);
     if (mag === 0) return null;
     return Math.acos(clamp(dot / mag, -1, 1)) * R2D;
   };
 
-  const angles: number[] = [];
-  if (earL && jawAngleL && chinAreaL) {
-    const a = calcAngle(earL, jawAngleL, chinAreaL);
-    if (a !== null) angles.push(a);
-  }
-  if (earR && jawAngleR && chinAreaR) {
-    const a = calcAngle(earR, jawAngleR, chinAreaR);
-    if (a !== null) angles.push(a);
+  const leftAngles: number[] = [];
+  const rightAngles: number[] = [];
+  for (let i = 7; i <= 11; i++) {
+    const l = lm(lms, `contour_left${i}`);
+    const r = lm(lms, `contour_right${i}`);
+    if (l) { const a = calcAngle(earL, l, chinL); if (a !== null) leftAngles.push(a); }
+    if (r) { const a = calcAngle(earR, r, chinR); if (a !== null) rightAngles.push(a); }
   }
 
-  if (angles.length === 0) return null;
-  return angles.reduce((a, b) => a + b, 0) / angles.length;
+  const minL = leftAngles.length  ? Math.min(...leftAngles)  : null;
+  const minR = rightAngles.length ? Math.min(...rightAngles) : null;
+
+  if (minL === null && minR === null) return null;
+  if (minL === null) return minR;
+  if (minR === null) return minL;
+  return (minL + minR) / 2;
 }
 
 /**
@@ -219,9 +223,9 @@ function calcGonialAngle(lms: FPLandmarks): number | null {
  * Ideal: ~0.25 (nose is 1/4 of face width). Wide nose > 0.30 is penalized.
  */
 function calcNoseWidthRatio(lms: FPLandmarks): number | null {
-  // Correct Face++ key names: nose_left_contour5 / nose_right_contour5
-  const noseL = lm(lms, 'nose_left_contour5');
-  const noseR = lm(lms, 'nose_right_contour5');
+  // contour1 = outermost ala point (widest), contour5 = near center — use contour1
+  const noseL = lm(lms, 'nose_left_contour1');
+  const noseR = lm(lms, 'nose_right_contour1');
 
   if (!noseL || !noseR) return null;
 
@@ -343,13 +347,14 @@ function fwhrToScore(fwhr: number, gender: 'male' | 'female'): number {
 }
 
 function gonialAngleToScore(deg: number): number {
-  // Ideal: 115-125° (sharp, defined). Average: 128-135°. Weak: >140°
-  if (deg <= 115) return lerp(deg, 105, 115, 8.5, 9);
-  if (deg <= 125) return lerp(deg, 115, 125, 7, 8.5);
-  if (deg <= 130) return lerp(deg, 125, 130, 5.5, 7);
-  if (deg <= 135) return lerp(deg, 130, 135, 4, 5.5);
-  if (deg <= 142) return lerp(deg, 135, 142, 3, 4);
-  return lerp(deg, 142, 155, 1.5, 3);
+  // Face++ contour-based min angle across jaw region — calibrated empirically.
+  // Sharp jaw ~130–138°, average ~145–152°, weak 158°+
+  if (deg <= 130) return lerp(deg, 118, 130, 8.5, 9.5);
+  if (deg <= 140) return lerp(deg, 130, 140, 7,   8.5);
+  if (deg <= 146) return lerp(deg, 140, 146, 5.5, 7);
+  if (deg <= 152) return lerp(deg, 146, 152, 4,   5.5);
+  if (deg <= 158) return lerp(deg, 152, 158, 3,   4);
+  return             lerp(deg, 158, 168, 1.5, 3);
 }
 
 function noseWidthToScore(ratio: number): number {
