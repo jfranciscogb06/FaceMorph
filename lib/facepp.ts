@@ -57,7 +57,7 @@ export async function detectWithFacePP(
   form.append('api_secret', apiSecret);
   form.append('image_base64', base64Image);
   form.append('return_landmark', '2'); // 106 points
-  form.append('return_attributes', 'beauty,skinstatus,facequality,headpose,blur,faceshape');
+  form.append('return_attributes', 'beauty,skinstatus,facequality,headpose,blur');
 
   const res = await fetch(FACEPP_ENDPOINT, {
     method: 'POST',
@@ -118,26 +118,13 @@ export async function detectWithFacePP(
     ? (attrs.beauty?.male_score ?? 50)
     : (attrs.beauty?.female_score ?? 50);
 
-  // Face shape from attributes
-  const faceShapeRaw = attrs.faceshape?.details?.[0]?.value
-    ?? attrs.faceshape?.value
-    ?? 'oval';
-
   return {
     landmarks: face.landmark || {},
     skinStatus,
     quality,
     headPose,
     beautyScore: rawBeauty,
-    faceShape: mapFaceShape(faceShapeRaw),
+    faceShape: 'Oval', // derived from geometry in geometricScoring
     faceRect: face.face_rectangle,
   };
-}
-
-function mapFaceShape(raw: string): string {
-  const map: Record<string, string> = {
-    circle: 'Round', oval: 'Oval', rectangle: 'Oblong',
-    rhombus: 'Diamond', triangle: 'Heart', square: 'Square', heart: 'Heart',
-  };
-  return map[raw?.toLowerCase()] ?? 'Oval';
 }

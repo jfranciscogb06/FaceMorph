@@ -500,6 +500,45 @@ export function computeAllScores(
   return { scores, measurements };
 }
 
+/**
+ * Derive face shape from landmark geometry.
+ * Uses face H/W ratio and jaw/cheekbone ratio.
+ */
+export function deriveFaceShape(landmarks: FPLandmarks): string {
+  const chin = lm(landmarks, 'contour_chin');
+  const c1L  = lm(landmarks, 'contour_left1');
+  const c1R  = lm(landmarks, 'contour_right1');
+  const c2L  = lm(landmarks, 'contour_left2');
+  const c2R  = lm(landmarks, 'contour_right2');
+  const c8L  = lm(landmarks, 'contour_left8');
+  const c8R  = lm(landmarks, 'contour_right8');
+  const lBrow = lm(landmarks, 'left_eyebrow_upper_middle');
+  const rBrow = lm(landmarks, 'right_eyebrow_upper_middle');
+
+  if (!chin || !c1L || !c1R || !lBrow || !rBrow) return 'Oval';
+
+  let faceWidth = Math.abs(c1R.x - c1L.x);
+  if (c2L && c2R) faceWidth = Math.max(faceWidth, Math.abs(c2R.x - c2L.x));
+
+  const browY = (lBrow.y + rBrow.y) / 2;
+  const hairlineY = browY - Math.abs(chin.y - browY) * 0.5;
+  const faceHeight = Math.abs(chin.y - hairlineY);
+
+  const hw = faceHeight / faceWidth; // height/width ratio
+
+  let jawWidth = faceWidth * 0.7; // fallback
+  if (c8L && c8R) jawWidth = Math.abs(c8R.x - c8L.x);
+
+  const jawRatio = jawWidth / faceWidth; // jaw width relative to cheekbones
+
+  if (hw < 1.1)  return 'Round';
+  if (hw > 1.55) return 'Oblong';
+  if (jawRatio > 0.90) return 'Square';
+  if (jawRatio < 0.68) return 'Heart';
+  if (hw > 1.35) return 'Oval';
+  return 'Diamond';
+}
+
 export function computeOverallScore(scores: GeometricScores): number {
   const w = {
     symmetry: 0.12, goldenRatio: 0.08, facialThirds: 0.08,

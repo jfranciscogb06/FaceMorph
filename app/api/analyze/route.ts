@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { detectWithFacePP } from '@/lib/facepp';
-import { computeAllScores, computeOverallScore } from '@/lib/geometricScoring';
+import { computeAllScores, computeOverallScore, deriveFaceShape } from '@/lib/geometricScoring';
 
 export const maxDuration = 60;
 
@@ -41,11 +41,12 @@ export async function POST(req: NextRequest) {
     );
 
     const overallScore = computeOverallScore(scores);
-    console.log('[analyze] computed scores:', scores, 'overall:', overallScore);
+    const faceShape = deriveFaceShape(fpResult.landmarks);
+    console.log('[analyze] computed scores:', scores, 'overall:', overallScore, 'shape:', faceShape);
 
     // ── Step 3: Claude text-only analysis ───────────────────────────────────
     const ethnicityStr = ethnicity?.length > 0 ? ` of ${ethnicity.join('/')} background` : '';
-    const prompt = buildTextPrompt(gender, ethnicityStr, scores, measurements, fpResult.faceShape, fpResult.headPose);
+    const prompt = buildTextPrompt(gender, ethnicityStr, scores, measurements, faceShape, fpResult.headPose);
 
     const res = await client.messages.create({
       model: 'claude-sonnet-4-6',
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
     const result = {
       overallScore,
       scores,
-      faceShape: fpResult.faceShape,
+      faceShape,
       styleCategory: analysis.styleCategory ?? 'Balanced',
       strengths: analysis.strengths ?? [],
       improvements: analysis.improvements ?? [],
