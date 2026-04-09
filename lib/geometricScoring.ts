@@ -392,15 +392,20 @@ function goldenRatioToScore(ratio: number): number {
 }
 
 function skinStatusToScore(skin: FPSkinStatus): number {
-  // Face++ returns confidence values (0-100), not raw severity — typical clear
-  // skin reads acne ~20-40, stain ~20-50, dark_circle ~20-50.
-  // Only penalise when well above typical baseline (~30).
-  const healthScore = lerp(skin.health, 10, 90, 2, 9);
-  // Penalties only kick in meaningfully above ~40 (clear skin baseline)
-  const acnePenalty  = lerp(Math.max(0, skin.acne - 30),        0, 60, 0, 2.5);
-  const stainPenalty = lerp(Math.max(0, skin.stain - 30),       0, 60, 0, 1.5);
-  const darkPenalty  = lerp(Math.max(0, skin.dark_circle - 30), 0, 60, 0, 1.0);
-  return clamp(healthScore - acnePenalty - stainPenalty - darkPenalty, 1, 10);
+  // Face++ health score is unreliable (lighting/tone dependent) — give it 25% weight.
+  // Visible issue metrics (acne, stain, dark_circle) are the primary signal.
+  // All issue scores: 0 = none (great), 80+ = severe (bad).
+  const healthScore = lerp(skin.health,        0, 100, 3, 9);  // floor at 3, not 1
+  const acneScore   = lerp(skin.acne,          0, 80,  9, 1);
+  const stainScore  = lerp(skin.stain,         0, 80,  9, 1);
+  const darkScore   = lerp(skin.dark_circle,   0, 80,  9, 1);
+  return clamp(
+    healthScore * 0.25 +
+    acneScore   * 0.40 +
+    stainScore  * 0.25 +
+    darkScore   * 0.10,
+    1, 10,
+  );
 }
 
 // ─── Main export ───────────────────────────────────────────────────────────────
