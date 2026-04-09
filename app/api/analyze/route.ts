@@ -70,7 +70,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: fpResult.message }, { status: 422 });
     }
 
-    console.log('[analyze] Face++ OK, head pose:', fpResult.headPose);
+    const landmarkKeys = Object.keys(fpResult.landmarks);
+    console.log('[analyze] Face++ landmarks count:', landmarkKeys.length, '| beauty:', fpResult.beautyScore, '| skin:', fpResult.skinStatus);
+    console.log('[analyze] landmark keys:', landmarkKeys.join(', '));
 
     // ── Step 2: Compute all scores mathematically ───────────────────────────
     const { scores, measurements } = computeAllScores(
@@ -80,9 +82,12 @@ export async function POST(req: NextRequest) {
       gender as 'male' | 'female',
     );
 
-    const overallScore = computeOverallScore(scores);
+    const overallScore = computeOverallScore(scores, fpResult.beautyScore);
     const faceShape = deriveFaceShape(fpResult.landmarks);
+    const nullMetrics = Object.entries(measurements).filter(([, v]) => v === null).map(([k]) => k);
     console.log('[analyze] computed scores:', scores, 'overall:', overallScore, 'shape:', faceShape);
+    console.log('[analyze] measurements:', measurements);
+    if (nullMetrics.length) console.log('[analyze] NULL metrics (fell to default):', nullMetrics);
 
     // ── Step 3: Claude text-only analysis ───────────────────────────────────
     const ethnicityStr = ethnicity?.length > 0 ? ` of ${ethnicity.join('/')} background` : '';

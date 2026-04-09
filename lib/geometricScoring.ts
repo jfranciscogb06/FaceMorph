@@ -486,18 +486,15 @@ export function computeAllScores(
   // Skin (from Face++ skin status)
   const skinScore = r1(skinStatusToScore(skinStatus));
 
-  // ── Deflation — PSL 4 is average, compress above that ──────────────────
-  const deflate = (s: number) => s <= 4 ? s : 4 + (s - 4) * 0.72;
-
   const scores: GeometricScores = {
-    symmetry:     r1(deflate(symScore)),
-    goldenRatio:  r1(deflate(grScore)),
-    facialThirds: r1(deflate(thirdsScore)),
-    jawline:      r1(deflate(jawScore)),
-    eyes:         r1(deflate(eyeScore)),
-    nose:         r1(deflate(noseScore)),
-    lips:         r1(deflate(lipsScore)),
-    skinClarity:  r1(deflate(skinScore)),
+    symmetry:     r1(symScore),
+    goldenRatio:  r1(grScore),
+    facialThirds: r1(thirdsScore),
+    jawline:      r1(jawScore),
+    eyes:         r1(eyeScore),
+    nose:         r1(noseScore),
+    lips:         r1(lipsScore),
+    skinClarity:  r1(skinScore),
   };
 
   return { scores, measurements };
@@ -542,12 +539,17 @@ export function deriveFaceShape(landmarks: FPLandmarks): string {
   return 'Diamond';
 }
 
-export function computeOverallScore(scores: GeometricScores): number {
+// Face++ beauty score (0–100) → PSL scale. 50 = average = PSL 4.
+function beautyScoreToPSL(beauty: number): number {
+  return clamp(4 + (beauty - 50) / 50 * 5, 1, 10);
+}
+
+export function computeOverallScore(scores: GeometricScores, beautyScore?: number): number {
   const w = {
     symmetry: 0.12, goldenRatio: 0.08, facialThirds: 0.08,
     jawline: 0.18, eyes: 0.20, nose: 0.12, lips: 0.10, skinClarity: 0.12,
   };
-  const raw =
+  const geoRaw =
     scores.symmetry     * w.symmetry     +
     scores.goldenRatio  * w.goldenRatio  +
     scores.facialThirds * w.facialThirds +
@@ -556,7 +558,13 @@ export function computeOverallScore(scores: GeometricScores): number {
     scores.nose         * w.nose         +
     scores.lips         * w.lips         +
     scores.skinClarity  * w.skinClarity;
-  // Final deflation pass on overall
-  const deflated = raw <= 4 ? raw : 4 + (raw - 4) * 0.72;
+
+  // Blend geometric score (75%) with Face++ beauty (25%) for sanity-check grounding
+  const raw = beautyScore !== undefined
+    ? geoRaw * 0.75 + beautyScoreToPSL(beautyScore) * 0.25
+    : geoRaw;
+
+  // Single deflation pass — PSL 4 is average, compress above that
+  const deflated = raw <= 4 ? raw : 4 + (raw - 4) * 0.82;
   return Math.round(deflated * 10) / 10;
 }
