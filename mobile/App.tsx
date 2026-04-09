@@ -107,9 +107,12 @@ const paywallShowing = React.useRef(false);
         const dir = FileSystem.documentDirectory + 'scans/';
         await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
         const dest = dir + scanId + '.jpg';
-        await FileSystem.copyAsync({ from: state.photoUri!, to: dest });
+        // Write from base64 — more reliable than copyAsync from camera roll URIs (ph:// / content://)
+        await FileSystem.writeAsStringAsync(dest, state.photoBase64!, { encoding: FileSystem.EncodingType.Base64 });
         savedPhotoUri = dest;
-      } catch {}
+      } catch (e) {
+        console.warn('[App] photo save failed:', (e as Error).message);
+      }
 
       const newItem: ScanHistoryItem = {
         id: scanId,
