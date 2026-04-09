@@ -150,7 +150,7 @@ COMPUTED PSL SCORES:
 - Facial Thirds: ${scores.facialThirds}
 - Jawline: ${scores.jawline} (gonial angle: ${fmt(m.gonialAngleDeg, 'deg')} | FWHR: ${fmt(m.fwhr)})
 - Eyes: ${scores.eyes} (canthal tilt: ${fmt(m.canthalTiltDeg, 'deg')} | aspect ratio: ${fmt(m.eyeAspectRatio)})
-- Nose: ${scores.nose} (width ratio: ${fmt(m.noseWidthRatio)}, ideal 0.26)
+- Nose: ${scores.nose} (width ratio: ${fmt(m.noseWidthRatio)}, narrower = more refined; ~0.10 refined, ~0.15 average, >0.20 broad)
 - Lips: ${scores.lips} (fullness: ${fmt(m.lipFullnessRatio)} | upper/lower: ${fmt(m.lipUpperLowerRatio)}, ideal 0.38)
 - Skin: ${scores.skinClarity} (Face++ health analysis)
 Face shape: ${faceShape} | Beauty score: ${fmt(m.beautyScore, '/100', 0)}

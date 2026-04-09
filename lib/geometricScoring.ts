@@ -358,13 +358,14 @@ function gonialAngleToScore(deg: number): number {
 }
 
 function noseWidthToScore(ratio: number): number {
-  // Ideal: 0.24-0.28. Wide >0.32 is penalized.
-  const delta = Math.abs(ratio - 0.26);
-  if (delta <= 0.02) return lerp(delta, 0, 0.02, 8, 7);
-  if (delta <= 0.04) return lerp(delta, 0.02, 0.04, 7, 5.5);
-  if (delta <= 0.07) return lerp(delta, 0.04, 0.07, 5.5, 4);
-  if (delta <= 0.10) return lerp(delta, 0.07, 0.10, 4, 3);
-  return lerp(delta, 0.10, 0.15, 3, 1.5);
+  // Face++ contour1 / max-face-width — empirical range: ~0.09 narrow to ~0.22+ broad.
+  // PSL preference: narrower = more refined. Score is monotonically decreasing.
+  if (ratio <= 0.10) return lerp(ratio, 0.07, 0.10, 9, 8);
+  if (ratio <= 0.13) return lerp(ratio, 0.10, 0.13, 8, 6.5);
+  if (ratio <= 0.15) return lerp(ratio, 0.13, 0.15, 6.5, 5);
+  if (ratio <= 0.17) return lerp(ratio, 0.15, 0.17, 5, 4);
+  if (ratio <= 0.20) return lerp(ratio, 0.17, 0.20, 4, 3);
+  return lerp(ratio, 0.20, 0.26, 3, 1.5);
 }
 
 function lipMetricsToScore(fullness: number, upperLowerRatio: number): number {
