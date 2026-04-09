@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
-import { createCanvas, loadImage } from 'canvas';
 import { detectWithFacePP } from '@/lib/facepp';
 import { computeAllScores, computeOverallScore, deriveFaceShape } from '@/lib/geometricScoring';
 
@@ -90,37 +89,20 @@ export async function POST(req: NextRequest) {
     console.log('[analyze] measurements:', measurements);
     if (nullMetrics.length) console.log('[analyze] NULL metrics (fell to default):', nullMetrics);
 
-    // ── Step 3: Flip image for visual symmetry comparison ───────────────────
-    let flippedBase64: string | null = null;
-    try {
-      const img = await loadImage(`data:image/jpeg;base64,${base64Data}`);
-      const canvas = createCanvas(img.width, img.height);
-      const ctx = canvas.getContext('2d');
-      ctx.translate(img.width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, 0);
-      flippedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
-    } catch (e) {
-      console.log('[analyze] image flip failed:', (e as Error).message);
-    }
-
-    // ── Step 4: Claude analysis (vision: original + flipped for symmetry) ───
+    // ── Step 3: Claude analysis (vision — send image for visual assessment) ──
     const ethnicityStr = ethnicity?.length > 0 ? ` of ${ethnicity.join('/')} background` : '';
     const prompt = buildTextPrompt(gender, ethnicityStr, scores, measurements, faceShape, fpResult.headPose);
 
-    const userContent: Anthropic.MessageParam['content'] = flippedBase64
-      ? [
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Data } },
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: flippedBase64 } },
-          { type: 'text', text: prompt + '\n\nThe first image is the original face. The second image is the same face mirrored horizontally. Compare them to assess actual visual symmetry — note any visible differences in feature position, size, or shape between the two.' },
-        ]
-      : prompt;
+    const userContent: Anthropic.MessageParam['content'] = [
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Data } },
+      { type: 'text', text: prompt + '\n\nUse the image above to visually assess symmetry — note any visible differences in eye shape/position, nose alignment, lip corners, or jawline between the left and right sides of the face.' },
+    ];
 
     // Use tool_use to force structured output — guarantees valid JSON always
     const res = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      system: 'You are a direct, honest facial analyst. Write specific observations based on the provided geometric measurements and visual comparison.',
+      system: 'You are a direct, honest facial analyst. Write specific observations based on the provided geometric measurements and the face photo.',
       tools: [ANALYSIS_TOOL],
       tool_choice: { type: 'tool', name: 'submit_analysis' },
       messages: [{ role: 'user', content: userContent }],
