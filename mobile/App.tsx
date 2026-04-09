@@ -239,8 +239,8 @@ const paywallShowing = React.useRef(false);
         <FadeView>
           <HomeScreen
             history={scanHistory}
-            latestPhotoUri={state.photoUri}
-            onNewScan={newScan}
+            latestPhotoUri={scanHistory[0]?.photoUri ?? state.photoUri}
+            onNewScan={scanHistory.length > 0 ? onUnlock : newScan}
             onDeleteScan={deleteScan}
             onResetApp={resetApp}
             onUnlock={onUnlock}

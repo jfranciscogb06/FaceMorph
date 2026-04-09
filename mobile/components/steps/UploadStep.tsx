@@ -106,8 +106,6 @@ export default function UploadStep({ photoUri, onPhoto, onNext, onBack }: Props)
           </>
         )}
 
-        <View style={styles.spacer} />
-
         <View style={styles.tips}>
           <Text style={styles.tip}>• Face camera directly, neutral expression</Text>
           <Text style={styles.tip}>• Soft, even lighting — no harsh shadows</Text>
@@ -143,7 +141,7 @@ const styles = StyleSheet.create({
   detectedText: { color: '#fff', fontWeight: '600', fontSize: 13 },
   changeBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   changeBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  uploadBox: { height: 180, borderWidth: 2, borderColor: '#e5e7eb', borderStyle: 'dashed', borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 16, gap: 12 },
+  uploadBox: { height: 260, borderWidth: 2, borderColor: '#e5e7eb', borderStyle: 'dashed', borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 16, gap: 12 },
   uploadIconBox: { width: 54, height: 40, borderRadius: 10, borderWidth: 2, borderColor: '#d1d5db', alignItems: 'center', justifyContent: 'center' },
   uploadIconLens: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#d1d5db' },
   uploadLabel: { fontSize: 15, color: '#6b7280', fontWeight: '500' },
@@ -152,8 +150,7 @@ const styles = StyleSheet.create({
   uploadBtnSecondary: { backgroundColor: '#f3f4f6' },
   uploadBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   processingText: { color: '#6b7280', fontSize: 14 },
-  spacer: { flex: 1 },
-  tips: { gap: 4, marginBottom: 12 },
+  tips: { gap: 4, marginBottom: 16, marginTop: 20 },
   tip: { fontSize: 12, color: '#9ca3af' },
   row: { flexDirection: 'row', gap: 12, paddingBottom: 8 },
   backBtn: { flex: 1, borderWidth: 1.5, borderColor: '#e5e7eb', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
