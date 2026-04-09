@@ -263,9 +263,6 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock, onNewScan }:
   const glintOpacity = useRef(new Animated.Value(0)).current;
   const glintX2 = useRef(new Animated.Value(-200)).current;
   const glintOpacity2 = useRef(new Animated.Value(0)).current;
-  const glintX3 = useRef(new Animated.Value(-200)).current;
-  const glintOpacity3 = useRef(new Animated.Value(0)).current;
-  const gradAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const makeSweep = (x: Animated.Value, op: Animated.Value) => (toX: number) => Animated.parallel([
@@ -293,17 +290,8 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock, onNewScan }:
 
     startLoop(glintX, glintOpacity, 0);
     startLoop(glintX2, glintOpacity2, 1500);
-    startLoop(glintX3, glintOpacity3, 3000);
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(gradAnim, { toValue: 1, duration: 2200, useNativeDriver: true }),
-        Animated.timing(gradAnim, { toValue: 0, duration: 2200, useNativeDriver: true }),
-      ])
-    ).start();
-
     return () => {
-      [glintX, glintX2, glintX3, glintOpacity, glintOpacity2, glintOpacity3, gradAnim].forEach(a => a.stopAnimation());
+      [glintX, glintX2, glintOpacity, glintOpacity2].forEach(a => a.stopAnimation());
     };
   }, []);
 
@@ -418,65 +406,43 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock, onNewScan }:
             </LinearGradient>
           )}
 
-          {/* Improvements — blurred (paywall gate) */}
-          {r!.improvements.length > 0 && (
-            <LinearGradient colors={['#f9fafb', '#f1f3f5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoCard, { borderColor: '#fde68a' }]}>
-              <Text style={styles.infoCardTitle}>↑ Areas to Improve</Text>
-              {r!.improvements.map((s, i) => <BlurredText key={i} style={styles.infoItem} onPress={onUnlock}>{`• ${s}`}</BlurredText>)}
-            </LinearGradient>
-          )}
+          {/* Paywall card */}
+          <TouchableOpacity style={styles.paywallCard} onPress={onUnlock} activeOpacity={0.92}>
+            <LinearGradient colors={['#111', '#2a2a2a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.paywallGradient}>
+              {/* Glint animations */}
+              <Animated.View style={{ position: 'absolute', top: -40, bottom: -40, width: 180, opacity: glintOpacity, transform: [{ translateX: glintX }, { rotate: '25deg' }] }}>
+                <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }} />
+              </Animated.View>
+              <Animated.View style={{ position: 'absolute', top: -40, bottom: -40, width: 180, opacity: glintOpacity2, transform: [{ translateX: glintX2 }, { rotate: '-15deg' }] }}>
+                <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }} />
+              </Animated.View>
 
-          {/* Feature analysis — all blurred */}
-          <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Feature Analysis</Text>
-          {r!.detailedAnalysis.map((d, i) => {
-            const scoreKey = FEATURE_TO_SCORE_KEY[d.feature];
-            const resolvedScore = scoreKey && r!.scores[scoreKey as keyof typeof r.scores] != null
-              ? (r!.scores[scoreKey as keyof typeof r.scores] as number)
-              : d.score;
-            return (
-              <View key={i} onLayout={(e) => { featureYPositions.current[d.feature] = e.nativeEvent.layout.y; }}>
-              <LinearGradient
-                colors={['#f9fafb', '#f1f3f5']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.featureCard}
-              >
-                <TouchableOpacity onPress={onUnlock} activeOpacity={0.85}>
-                  <View style={styles.featureHeader}>
-                    <Text style={styles.featureName}>{d.feature}</Text>
-                    <Text style={[styles.featureScore, { color: gradientColor(resolvedScore) }]}>{resolvedScore.toFixed(1)}</Text>
-                  </View>
-                  <BlurredText style={styles.featureObs}>{d.observation}</BlurredText>
-                  <BlurredText style={styles.featureTip}>{`Tip: ${d.tip}`}</BlurredText>
-                </TouchableOpacity>
-              </LinearGradient>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <Ionicons name="lock-closed" size={18} color="#fff" />
+                <Text style={styles.paywallTitle}>Unlock Full Analysis</Text>
               </View>
-            );
-          })}
 
-          {/* Recommendations — all visible */}
-          {r!.recommendations.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { paddingHorizontal: 0 }]}>Recommendations</Text>
-              {r!.recommendations.map((rec, i) => (
-                <View key={i} style={styles.recCard}>
-                  <View style={styles.recBadge}>
-                    <Text style={styles.recBadgeText}>{CAT_LABELS[rec.category] || rec.category}</Text>
+              <View style={{ gap: 10, marginBottom: 20 }}>
+                {[
+                  { icon: 'trending-up-outline', label: 'Areas to Improve' },
+                  { icon: 'body-outline',        label: 'Feature Breakdown & Tips' },
+                  { icon: 'list-outline',        label: 'Personalized Recommendations' },
+                  { icon: 'chatbubble-outline',  label: 'AI Coach Chat' },
+                ].map(({ icon, label }) => (
+                  <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Ionicons name={icon as any} size={16} color="#9ca3af" />
+                    <Text style={styles.paywallItem}>{label}</Text>
                   </View>
-                  <Text style={styles.recTitle}>{rec.title}</Text>
-                  <Text style={styles.recDesc}>{rec.description}</Text>
-                </View>
-              ))}
-            </>
-          )}
+                ))}
+              </View>
 
-          {/* Ask AI */}
-          <TouchableOpacity style={styles.askAiBtn} onPress={onUnlock} activeOpacity={0.85}>
-            <Ionicons name="chatbubble-outline" size={18} color="#fff" />
-            <Text style={styles.askAiBtnText}>Ask AI about your results</Text>
+              <View style={styles.paywallBtn}>
+                <Text style={styles.paywallBtnText}>See Full Results</Text>
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
 
-          <View style={{ height: 120 }} />
+          <View style={{ height: 40 }} />
         </View>
       )}
 
@@ -488,54 +454,6 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock, onNewScan }:
       </Modal>
     </ScrollView>
 
-    {/* Sticky unlock button — bottom right corner */}
-    {r && (
-      <TouchableOpacity style={styles.unlockBanner} onPress={onUnlock} activeOpacity={0.9}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, overflow: 'hidden', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: '#111' }}>
-          {/* Base gradient */}
-          <LinearGradient colors={['#111111', '#333333']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20 }} />
-          {/* Animated overlay gradient that shifts */}
-          <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: gradAnim }}>
-            <LinearGradient colors={['#2a2a2a', '#0d0d0d']} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={{ flex: 1, borderRadius: 20 }} />
-          </Animated.View>
-          <Ionicons name="lock-closed" size={14} color="#fff" />
-          <Text style={styles.unlockBannerTitle}>Full Analysis</Text>
-          <Animated.View style={{
-            position: 'absolute', top: -30, bottom: -30, width: 160,
-            opacity: glintOpacity,
-            transform: [{ translateX: glintX }, { rotate: '25deg' }],
-          }}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0)']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ flex: 1 }}
-            />
-          </Animated.View>
-          <Animated.View style={{
-            position: 'absolute', top: -30, bottom: -30, width: 160,
-            opacity: glintOpacity2,
-            transform: [{ translateX: glintX2 }, { rotate: '-15deg' }],
-          }}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.13)', 'rgba(255,255,255,0)']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ flex: 1 }}
-            />
-          </Animated.View>
-          <Animated.View style={{
-            position: 'absolute', top: -30, bottom: -30, width: 120,
-            opacity: glintOpacity3,
-            transform: [{ translateX: glintX3 }, { rotate: '45deg' }],
-          }}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ flex: 1 }}
-            />
-          </Animated.View>
-        </View>
-      </TouchableOpacity>
-    )}
     </View>
   );
 }
@@ -1037,29 +955,10 @@ const styles = StyleSheet.create({
   infoCardTitle: { color: '#111', fontWeight: '600', fontSize: 16, marginBottom: 8 },
   infoItem: { color: '#374151', fontSize: 15, marginBottom: 4, lineHeight: 21 },
 
-  recCard: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 14 },
-  featureCard: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 16, padding: 14, marginBottom: 10 },
-  featureHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  featureName: { color: '#111', fontWeight: '600', fontSize: 14 },
-  featureScore: { fontWeight: '700', fontSize: 14 },
-  featureObs: { color: '#6b7280', fontSize: 12, marginBottom: 4 },
-  featureTip: { color: '#9ca3af', fontSize: 12 },
-  recBadge: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6, backgroundColor: '#f3f4f6' },
-  recBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, color: '#6b7280' },
-  recTitle: { color: '#111', fontWeight: '600', fontSize: 16, marginBottom: 4 },
-  recDesc: { color: '#6b7280', fontSize: 14, lineHeight: 20 },
-
-  chatFab: { position: 'absolute', right: 20, backgroundColor: '#111', borderRadius: 26, paddingHorizontal: 20, paddingVertical: 13, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 6 },
-  chatFabText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-
-  unlockBanner: {
-    position: 'absolute', bottom: 14, right: 16,
-    borderRadius: 20,
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 8,
-  },
-  unlockBannerIcon: { fontSize: 13 },
-  unlockBannerTitle: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  unlockBannerSub: { color: '#9ca3af', fontSize: 11, marginTop: 1 },
-  unlockBannerBtn: { backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  unlockBannerBtnText: { color: '#111', fontWeight: '700', fontSize: 11 },
+  paywallCard: { borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  paywallGradient: { padding: 22, overflow: 'hidden' },
+  paywallTitle: { color: '#fff', fontWeight: '800', fontSize: 18, letterSpacing: -0.3 },
+  paywallItem: { color: '#d1d5db', fontSize: 15 },
+  paywallBtn: { backgroundColor: '#fff', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  paywallBtnText: { color: '#111', fontWeight: '800', fontSize: 16, letterSpacing: -0.2 },
 });
