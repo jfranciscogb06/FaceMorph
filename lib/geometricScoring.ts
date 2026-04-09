@@ -404,6 +404,7 @@ export interface GeometricScores {
   nose: number;
   lips: number;
   skinClarity: number;
+  [key: string]: number;
 }
 
 export interface RawMeasurements {
