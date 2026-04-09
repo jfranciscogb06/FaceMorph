@@ -101,8 +101,8 @@ export default function App() {
     try {
       const imageDataUrl = `data:image/jpeg;base64,${state.photoBase64}`;
       const result = await analyzePhoto(imageDataUrl, state.gender ?? 'male', state.ethnicity);
-      update({ result, step: 'home' });
-      setFreshScan(true);
+      // Save photo first, then update history, then navigate — so HomeScreen
+      // always mounts with the new scan already in the history prop.
       const scanId = Date.now().toString();
       let savedPhotoUri: string | undefined;
       try {
@@ -127,6 +127,10 @@ export default function App() {
       const updated = [newItem, ...base].slice(0, 20);
       setScanHistory(updated);
       AsyncStorage.setItem(STORAGE_HISTORY, JSON.stringify(updated)).catch(() => {});
+
+      // Navigate after history is set so the scan is visible immediately
+      update({ result, step: 'home' });
+      setFreshScan(true);
     } catch (e) {
       console.error('Analysis failed:', (e as Error).message);
       update({ step: 'home', error: (e as Error).message });
