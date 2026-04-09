@@ -7,6 +7,46 @@ export const maxDuration = 60;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Tool definition — forces Claude to return structured, always-valid JSON
+const ANALYSIS_TOOL: Anthropic.Tool = {
+  name: 'submit_analysis',
+  description: 'Submit the facial analysis result based on the computed geometric measurements.',
+  input_schema: {
+    type: 'object' as const,
+    required: ['styleCategory', 'strengths', 'improvements', 'recommendations', 'observations'],
+    properties: {
+      styleCategory: { type: 'string', enum: ['Sharp', 'Balanced', 'Soft', 'Angular', 'Classic'] },
+      strengths: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 3 },
+      improvements: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 3 },
+      recommendations: {
+        type: 'array', maxItems: 3,
+        items: {
+          type: 'object',
+          required: ['category', 'title', 'description', 'priority'],
+          properties: {
+            category: { type: 'string', enum: ['skincare', 'grooming', 'hairstyle', 'exercise', 'lifestyle'] },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+          },
+        },
+      },
+      observations: {
+        type: 'object',
+        required: ['jawline', 'eyes', 'nose', 'lips', 'symmetry', 'skin'],
+        properties: {
+          jawline:  { type: 'string' },
+          eyes:     { type: 'string' },
+          nose:     { type: 'string' },
+          lips:     { type: 'string' },
+          symmetry: { type: 'string' },
+          skin:     { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
 export async function POST(req: NextRequest) {
   console.log('[analyze] POST hit');
   try {
@@ -48,62 +88,20 @@ export async function POST(req: NextRequest) {
     const ethnicityStr = ethnicity?.length > 0 ? ` of ${ethnicity.join('/')} background` : '';
     const prompt = buildTextPrompt(gender, ethnicityStr, scores, measurements, faceShape, fpResult.headPose);
 
+    // Use tool_use to force structured output — guarantees valid JSON always
     const res = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      system: 'You are a direct, honest facial analyst. Write observations and advice based on the provided geometric measurements. Be specific and accurate. Output only valid JSON with no markdown, no prose, no explanation.',
+      system: 'You are a direct, honest facial analyst. Write specific observations based on the provided geometric measurements.',
+      tools: [ANALYSIS_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_analysis' },
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const text = res.content[0]?.type === 'text' ? res.content[0].text : '';
-    console.log('[analyze] claude raw (first 200):', text.slice(0, 200));
+    const toolUse = res.content.find(b => b.type === 'tool_use') as Anthropic.ToolUseBlock | undefined;
+    if (!toolUse) throw new Error('Claude did not call the analysis tool');
 
-    const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Non-JSON response from Claude: ' + text.slice(0, 200));
-
-    let cleaned = jsonMatch[0].replace(/[\u0000-\u001F\u007F]/g, (c) => {
-      if (c === '\n') return '\\n';
-      if (c === '\r') return '\\r';
-      if (c === '\t') return '\\t';
-      return '';
-    });
-
-    // Repair truncated JSON if response hit max_tokens
-    if (res.stop_reason === 'max_tokens') {
-      console.warn('[analyze] Claude hit max_tokens, attempting JSON repair');
-      let opens = 0;
-      for (const ch of cleaned) { if (ch === '{') opens++; else if (ch === '}') opens--; }
-      cleaned = cleaned.replace(/,\s*$/, '') + '}'.repeat(Math.max(0, opens));
-    }
-
-    let analysis: Record<string, unknown> | null = tryParseJSON(cleaned);
-
-    if (!analysis) {
-      // Retry once with a stricter prompt
-      console.warn('[analyze] JSON parse failed, retrying...');
-      const retryRes = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
-        system: 'Output ONLY a raw JSON object. No markdown. No code blocks. No explanation. Start your response with { and end with }.',
-        messages: [{ role: 'user', content: prompt }],
-      });
-      const retryText = retryRes.content[0]?.type === 'text' ? retryRes.content[0].text : '';
-      const retryMatch = retryText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim().match(/\{[\s\S]*\}/);
-      if (retryMatch) {
-        const retryCleaned = retryMatch[0].replace(/[\u0000-\u001F\u007F]/g, (c) => {
-          if (c === '\n') return '\\n';
-          if (c === '\r') return '\\r';
-          if (c === '\t') return '\\t';
-          return '';
-        });
-        analysis = tryParseJSON(retryCleaned);
-      }
-    }
-
-    if (!analysis) {
-      throw new Error('Claude returned invalid JSON after retry');
-    }
+    const analysis = toolUse.input as Record<string, unknown>;
 
     // ── Step 4: Assemble result ─────────────────────────────────────────────
     const result = {
@@ -139,62 +137,22 @@ function buildTextPrompt(
   const fmt = (v: number | null, unit = '', decimals = 1) =>
     v !== null ? `${v.toFixed(decimals)}${unit}` : 'unavailable';
 
-  return `You are a precise facial analyst. Below are the exact geometric measurements and PSL scores for a ${gender}${ethnicityStr}. Write specific observations based strictly on these numbers — do not guess or invent.
+  return `Facial analysis for a ${gender}${ethnicityStr}. PSL scale: 4 = average population, 5 = above average, 6 = attractive, 7+ = very attractive.
 
-COMPUTED PSL SCORES (1-10 scale, PSL 4 = average population):
-• Symmetry: ${scores.symmetry} — from landmark deviation analysis
-• Golden Ratio: ${scores.goldenRatio} — IPD/face-width ratio: ${fmt(m.goldenRatioIPD)}
-• Facial Thirds: ${scores.facialThirds} — max deviation from ideal 33/33/33%
-• Jawline: ${scores.jawline} — gonial angle: ${fmt(m.gonialAngleDeg, '°')} | FWHR: ${fmt(m.fwhr)}
-• Eyes: ${scores.eyes} — canthal tilt: ${fmt(m.canthalTiltDeg, '°')} | eye aspect ratio: ${fmt(m.eyeAspectRatio)}
-• Nose: ${scores.nose} — nose width ratio: ${fmt(m.noseWidthRatio)} (ideal: 0.26)
-• Lips: ${scores.lips} — fullness ratio: ${fmt(m.lipFullnessRatio)} | upper:lower ratio: ${fmt(m.lipUpperLowerRatio)} (ideal: 0.38)
-• Skin: ${scores.skinClarity} — Face++ skin health/clarity analysis
-• Face++ beauty score: ${fmt(m.beautyScore, '/100', 0)}
+COMPUTED PSL SCORES:
+- Symmetry: ${scores.symmetry} (deviation: ${fmt(m.symmetryDeviation, '', 3)})
+- Golden Ratio: ${scores.goldenRatio} (IPD/face-width: ${fmt(m.goldenRatioIPD)})
+- Facial Thirds: ${scores.facialThirds}
+- Jawline: ${scores.jawline} (gonial angle: ${fmt(m.gonialAngleDeg, 'deg')} | FWHR: ${fmt(m.fwhr)})
+- Eyes: ${scores.eyes} (canthal tilt: ${fmt(m.canthalTiltDeg, 'deg')} | aspect ratio: ${fmt(m.eyeAspectRatio)})
+- Nose: ${scores.nose} (width ratio: ${fmt(m.noseWidthRatio)}, ideal 0.26)
+- Lips: ${scores.lips} (fullness: ${fmt(m.lipFullnessRatio)} | upper/lower: ${fmt(m.lipUpperLowerRatio)}, ideal 0.38)
+- Skin: ${scores.skinClarity} (Face++ health analysis)
+Face shape: ${faceShape} | Beauty score: ${fmt(m.beautyScore, '/100', 0)}
 
-DETECTED FACE SHAPE: ${faceShape}
-HEAD POSE: yaw ${headPose.yaw_angle.toFixed(1)}°, pitch ${headPose.pitch_angle.toFixed(1)}°, roll ${headPose.roll_angle.toFixed(1)}°
+References: canthal tilt +3 to +5deg = hunter eyes; gonial angle 115-125deg = sharp jaw, 135+ = weak; FWHR 1.9 = ideal male, 1.75 = ideal female; nose ratio 0.24-0.28 = ideal.
 
-Canthal tilt reference: +3° to +5° = positive/hunter eyes (PSL attractive), 0° = neutral, negative = drooping
-Gonial angle reference: 115-125° = sharp defined jaw, 128-135° = average, >140° = weak/undefined
-FWHR reference: ~1.9 = ideal masculine, ~1.75 = ideal feminine
-Nose ratio reference: 0.24-0.28 = ideal, >0.32 = wide
-
-Based on these exact numbers, write observations and advice. Be specific — reference the actual measurements. Do not soften or inflate.
-
-Output ONLY valid JSON:
-{
-  "styleCategory": "<Sharp|Balanced|Soft|Angular|Classic>",
-  "strengths": ["<2-3 specific strengths backed by a high score above — name the metric>"],
-  "improvements": ["<2-3 specific weaknesses backed by a low score — name the metric and what it means>"],
-  "recommendations": [
-    {
-      "category": "<skincare|grooming|hairstyle|exercise|lifestyle>",
-      "title": "<short title>",
-      "description": "<1-2 sentences targeting the specific weak metric>",
-      "priority": "<high|medium|low>"
-    }
-  ],
-  "observations": {
-    "jawline": "<describe what the gonial angle and FWHR numbers indicate about jaw structure>",
-    "eyes": "<describe what the canthal tilt and aspect ratio indicate>",
-    "nose": "<describe what the nose width ratio indicates>",
-    "lips": "<describe what the fullness and upper/lower ratio indicate>",
-    "symmetry": "<describe what the symmetry deviation indicates>",
-    "skin": "<describe what the skin score indicates>"
-  }
-}`;
-}
-
-// ─── JSON parse helper ────────────────────────────────────────────────────────
-
-function tryParseJSON(str: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(str);
-  } catch {
-    console.error('[analyze] JSON parse failed:', str.slice(0, 300));
-    return null;
-  }
+Write honest, specific observations referencing the actual numbers. Call out weaknesses directly.`;
 }
 
 // ─── Build detailedAnalysis array from scores + observations ─────────────────
