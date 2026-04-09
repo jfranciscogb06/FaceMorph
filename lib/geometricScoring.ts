@@ -87,16 +87,18 @@ function calcSymmetry(lms: FPLandmarks): number | null {
 
   const midX = (lEyeC.x + rEyeC.x) / 2;
 
+  // Face++ 106-point contour: 16 points per side ear→chin
+  // ~left3/right3 = cheekbone, ~left9/right9 = jaw angle, ~left13/right13 = lower jaw
   const pairs: [string, string][] = [
     ['left_eye_pupil', 'right_eye_pupil'],
     ['left_eye_left_corner', 'right_eye_right_corner'],
     ['left_eyebrow_left_corner', 'right_eyebrow_right_corner'],
     ['left_eyebrow_upper_middle', 'right_eyebrow_upper_middle'],
-    ['nose_contour_left5', 'nose_contour_right5'],
+    ['nose_left_contour5', 'nose_right_contour5'],   // fixed key names
     ['mouth_left_corner', 'mouth_right_corner'],
-    ['contour_left1', 'contour_right1'],
-    ['contour_left5', 'contour_right5'],
-    ['contour_left9', 'contour_right9'],
+    ['contour_left3', 'contour_right3'],   // cheekbone level
+    ['contour_left9', 'contour_right9'],   // jaw angle level
+    ['contour_left13', 'contour_right13'], // lower jaw level
   ];
 
   const deviations: number[] = [];
@@ -150,23 +152,24 @@ function calcFacialThirds(lms: FPLandmarks): number | null {
  * Ideal range: ~1.8–2.0 (men), ~1.6–1.9 (women).
  */
 function calcFWHR(lms: FPLandmarks): number | null {
-  const c1L = lm(lms, 'contour_left1');
-  const c1R = lm(lms, 'contour_right1');
   const lBrow = lm(lms, 'left_eyebrow_upper_middle');
   const rBrow = lm(lms, 'right_eyebrow_upper_middle');
   const mouth = lm(lms, 'mouth_upper_lip_top');
 
-  if (!c1L || !c1R || !lBrow || !rBrow || !mouth) return null;
+  if (!lBrow || !rBrow || !mouth) return null;
 
-  // Bizygomatic width = widest face contour (typically contour 1 on each side)
-  // Try contour 2 as well and take max
-  const c2L = lm(lms, 'contour_left2');
-  const c2R = lm(lms, 'contour_right2');
-  let faceWidth = Math.abs(c1R.x - c1L.x);
-  if (c2L && c2R) faceWidth = Math.max(faceWidth, Math.abs(c2R.x - c2L.x));
+  // Bizygomatic width = widest point across contour_left1–5 (cheekbone region)
+  // Face++ 106-point: 16 contour points per side, cheekbone is typically around 2–5
+  let faceWidth = 0;
+  for (let i = 1; i <= 6; i++) {
+    const l = lm(lms, `contour_left${i}`);
+    const r = lm(lms, `contour_right${i}`);
+    if (l && r) faceWidth = Math.max(faceWidth, Math.abs(r.x - l.x));
+  }
+  if (faceWidth === 0) return null;
 
   const browY = (lBrow.y + rBrow.y) / 2;
-  const upperFaceH = Math.abs(mouth.y - browY); // brow to mouth
+  const upperFaceH = Math.abs(mouth.y - browY);
 
   if (upperFaceH <= 0) return null;
   return faceWidth / upperFaceH;
@@ -178,14 +181,15 @@ function calcFWHR(lms: FPLandmarks): number | null {
  * Sharper angle (~115°) = defined jaw = higher score.
  */
 function calcGonialAngle(lms: FPLandmarks): number | null {
-  // Use three points: near-ear (contour 2), jaw angle (contour 5), near-chin (contour 8)
+  // Face++ 106-point: 16 contour points per side ear→chin
+  // ear ~2, jaw angle ~9, near-chin ~13
   const earL = lm(lms, 'contour_left2');
-  const jawAngleL = lm(lms, 'contour_left5');
-  const chinAreaL = lm(lms, 'contour_left8');
+  const jawAngleL = lm(lms, 'contour_left9');
+  const chinAreaL = lm(lms, 'contour_left13');
 
   const earR = lm(lms, 'contour_right2');
-  const jawAngleR = lm(lms, 'contour_right5');
-  const chinAreaR = lm(lms, 'contour_right8');
+  const jawAngleR = lm(lms, 'contour_right9');
+  const chinAreaR = lm(lms, 'contour_right13');
 
   const calcAngle = (ear: { x: number; y: number }, jaw: { x: number; y: number }, chinArea: { x: number; y: number }) => {
     const v1 = { x: ear.x - jaw.x, y: ear.y - jaw.y };
@@ -215,19 +219,21 @@ function calcGonialAngle(lms: FPLandmarks): number | null {
  * Ideal: ~0.25 (nose is 1/4 of face width). Wide nose > 0.30 is penalized.
  */
 function calcNoseWidthRatio(lms: FPLandmarks): number | null {
-  const noseL = lm(lms, 'nose_contour_left5') ?? lm(lms, 'nose_left_corner');
-  const noseR = lm(lms, 'nose_contour_right5') ?? lm(lms, 'nose_right_corner');
-  const c1L = lm(lms, 'contour_left1');
-  const c1R = lm(lms, 'contour_right1');
-  const c2L = lm(lms, 'contour_left2');
-  const c2R = lm(lms, 'contour_right2');
+  // Correct Face++ key names: nose_left_contour5 / nose_right_contour5
+  const noseL = lm(lms, 'nose_left_contour5');
+  const noseR = lm(lms, 'nose_right_contour5');
 
-  if (!noseL || !noseR || !c1L || !c1R) return null;
+  if (!noseL || !noseR) return null;
 
   const noseWidth = Math.abs(noseR.x - noseL.x);
-  let faceWidth = Math.abs(c1R.x - c1L.x);
-  if (c2L && c2R) faceWidth = Math.max(faceWidth, Math.abs(c2R.x - c2L.x));
 
+  // Face width = widest contour point across cheekbone region
+  let faceWidth = 0;
+  for (let i = 1; i <= 6; i++) {
+    const l = lm(lms, `contour_left${i}`);
+    const r = lm(lms, `contour_right${i}`);
+    if (l && r) faceWidth = Math.max(faceWidth, Math.abs(r.x - l.x));
+  }
   if (faceWidth <= 0) return null;
   return noseWidth / faceWidth;
 }
@@ -269,17 +275,18 @@ function calcLipMetrics(lms: FPLandmarks): { fullnessRatio: number; upperLowerRa
 function calcGoldenRatio(lms: FPLandmarks): number | null {
   const lPupil = lm(lms, 'left_eye_pupil') ?? lm(lms, 'left_eye_center');
   const rPupil = lm(lms, 'right_eye_pupil') ?? lm(lms, 'right_eye_center');
-  const c1L = lm(lms, 'contour_left1');
-  const c1R = lm(lms, 'contour_right1');
-  const c2L = lm(lms, 'contour_left2');
-  const c2R = lm(lms, 'contour_right2');
 
-  if (!lPupil || !rPupil || !c1L || !c1R) return null;
+  if (!lPupil || !rPupil) return null;
 
   const ipd = Math.abs(rPupil.x - lPupil.x);
-  let faceWidth = Math.abs(c1R.x - c1L.x);
-  if (c2L && c2R) faceWidth = Math.max(faceWidth, Math.abs(c2R.x - c2L.x));
 
+  // Face width = widest point across cheekbone contour region
+  let faceWidth = 0;
+  for (let i = 1; i <= 6; i++) {
+    const l = lm(lms, `contour_left${i}`);
+    const r = lm(lms, `contour_right${i}`);
+    if (l && r) faceWidth = Math.max(faceWidth, Math.abs(r.x - l.x));
+  }
   if (faceWidth <= 0) return null;
   return ipd / faceWidth;
 }
@@ -505,31 +512,34 @@ export function computeAllScores(
  * Uses face H/W ratio and jaw/cheekbone ratio.
  */
 export function deriveFaceShape(landmarks: FPLandmarks): string {
-  const chin = lm(landmarks, 'contour_chin');
-  const c1L  = lm(landmarks, 'contour_left1');
-  const c1R  = lm(landmarks, 'contour_right1');
-  const c2L  = lm(landmarks, 'contour_left2');
-  const c2R  = lm(landmarks, 'contour_right2');
-  const c8L  = lm(landmarks, 'contour_left8');
-  const c8R  = lm(landmarks, 'contour_right8');
+  const chin  = lm(landmarks, 'contour_chin');
   const lBrow = lm(landmarks, 'left_eyebrow_upper_middle');
   const rBrow = lm(landmarks, 'right_eyebrow_upper_middle');
 
-  if (!chin || !c1L || !c1R || !lBrow || !rBrow) return 'Oval';
+  if (!chin || !lBrow || !rBrow) return 'Oval';
 
-  let faceWidth = Math.abs(c1R.x - c1L.x);
-  if (c2L && c2R) faceWidth = Math.max(faceWidth, Math.abs(c2R.x - c2L.x));
+  // Bizygomatic width = max width across cheekbone contour region (points 1–6)
+  let faceWidth = 0;
+  for (let i = 1; i <= 6; i++) {
+    const l = lm(landmarks, `contour_left${i}`);
+    const r = lm(landmarks, `contour_right${i}`);
+    if (l && r) faceWidth = Math.max(faceWidth, Math.abs(r.x - l.x));
+  }
+  if (faceWidth === 0) return 'Oval';
 
   const browY = (lBrow.y + rBrow.y) / 2;
   const hairlineY = browY - Math.abs(chin.y - browY) * 0.5;
   const faceHeight = Math.abs(chin.y - hairlineY);
 
-  const hw = faceHeight / faceWidth; // height/width ratio
+  const hw = faceHeight / faceWidth;
 
+  // Jaw width — use lower jaw contour points (~13–14 with 16-point set)
+  const c13L = lm(landmarks, 'contour_left13');
+  const c13R = lm(landmarks, 'contour_right13');
   let jawWidth = faceWidth * 0.7; // fallback
-  if (c8L && c8R) jawWidth = Math.abs(c8R.x - c8L.x);
+  if (c13L && c13R) jawWidth = Math.abs(c13R.x - c13L.x);
 
-  const jawRatio = jawWidth / faceWidth; // jaw width relative to cheekbones
+  const jawRatio = jawWidth / faceWidth;
 
   if (hw < 1.1)  return 'Round';
   if (hw > 1.55) return 'Oblong';
