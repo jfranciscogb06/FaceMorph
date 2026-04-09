@@ -77,13 +77,32 @@ export async function POST(req: NextRequest) {
       cleaned = cleaned.replace(/,\s*$/, '') + '}'.repeat(Math.max(0, opens));
     }
 
-    let analysis: Record<string, unknown>;
-    try {
-      analysis = JSON.parse(cleaned);
-    } catch (e) {
-      console.error('[analyze] JSON parse failed:', cleaned.slice(0, 500));
-      // Fall back to a minimal valid analysis derived from computed scores
-      analysis = buildFallbackAnalysis(scores, measurements);
+    let analysis: Record<string, unknown> | null = tryParseJSON(cleaned);
+
+    if (!analysis) {
+      // Retry once with a stricter prompt
+      console.warn('[analyze] JSON parse failed, retrying...');
+      const retryRes = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        system: 'Output ONLY a raw JSON object. No markdown. No code blocks. No explanation. Start your response with { and end with }.',
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const retryText = retryRes.content[0]?.type === 'text' ? retryRes.content[0].text : '';
+      const retryMatch = retryText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim().match(/\{[\s\S]*\}/);
+      if (retryMatch) {
+        const retryCleaned = retryMatch[0].replace(/[\u0000-\u001F\u007F]/g, (c) => {
+          if (c === '\n') return '\\n';
+          if (c === '\r') return '\\r';
+          if (c === '\t') return '\\t';
+          return '';
+        });
+        analysis = tryParseJSON(retryCleaned);
+      }
+    }
+
+    if (!analysis) {
+      throw new Error('Claude returned invalid JSON after retry');
     }
 
     // ── Step 4: Assemble result ─────────────────────────────────────────────
@@ -167,35 +186,15 @@ Output ONLY valid JSON:
 }`;
 }
 
-// ─── Fallback analysis when Claude JSON parse fails ──────────────────────────
+// ─── JSON parse helper ────────────────────────────────────────────────────────
 
-function buildFallbackAnalysis(
-  scores: Record<string, number>,
-  m: Record<string, number | null>,
-): Record<string, unknown> {
-  const tilt = m.canthalTiltDeg;
-  const gonial = m.gonialAngleDeg;
-  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-  const top = sorted.slice(0, 2).map(([k]) => k);
-  const bottom = sorted.slice(-2).map(([k]) => k);
-
-  return {
-    styleCategory: scores.jawline > 5 ? 'Sharp' : scores.eyes > 5 ? 'Angular' : 'Balanced',
-    strengths: top.map(k => `${k.charAt(0).toUpperCase() + k.slice(1)}: scored ${scores[k].toFixed(1)} — above average.`),
-    improvements: bottom.map(k => `${k.charAt(0).toUpperCase() + k.slice(1)}: scored ${scores[k].toFixed(1)} — room for improvement.`),
-    recommendations: [
-      { category: 'grooming', title: 'Jawline definition', description: gonial ? `Gonial angle of ${gonial.toFixed(0)}° — reducing face fat and mewing can sharpen jaw definition.` : 'Reduce face fat to reveal underlying jaw structure.', priority: 'high' },
-      { category: 'skincare', title: 'Skin clarity', description: 'Consistent skincare routine targeting texture and clarity.', priority: 'medium' },
-    ],
-    observations: {
-      jawline: gonial ? `Gonial angle ${gonial.toFixed(1)}° — ${gonial < 125 ? 'sharp, defined jaw' : gonial < 135 ? 'average jaw definition' : 'soft, undefined jaw'}.` : 'Jaw structure analysis unavailable.',
-      eyes: tilt != null ? `Canthal tilt ${tilt.toFixed(1)}° — ${tilt > 3 ? 'positive hunter-eye tilt' : tilt > 0 ? 'neutral-positive tilt' : 'neutral to negative tilt'}.` : 'Eye angle analysis unavailable.',
-      nose: m.noseWidthRatio != null ? `Nose width ratio ${m.noseWidthRatio.toFixed(3)} — ${m.noseWidthRatio < 0.28 ? 'well proportioned' : 'slightly wide relative to face'}.` : 'Nose analysis unavailable.',
-      lips: m.lipFullnessRatio != null ? `Lip fullness ratio ${m.lipFullnessRatio.toFixed(3)} — ${m.lipFullnessRatio > 0.30 ? 'good fullness' : 'below average fullness'}.` : 'Lip analysis unavailable.',
-      symmetry: m.symmetryDeviation != null ? `Symmetry deviation ${(m.symmetryDeviation * 100).toFixed(1)}% — ${m.symmetryDeviation < 0.07 ? 'good symmetry' : 'noticeable asymmetry'}.` : 'Symmetry analysis unavailable.',
-      skin: `Skin clarity score ${scores.skinClarity.toFixed(1)} based on Face++ health analysis.`,
-    },
-  };
+function tryParseJSON(str: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(str);
+  } catch {
+    console.error('[analyze] JSON parse failed:', str.slice(0, 300));
+    return null;
+  }
 }
 
 // ─── Build detailedAnalysis array from scores + observations ─────────────────
