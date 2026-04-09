@@ -570,11 +570,9 @@ export function computeOverallScore(scores: GeometricScores, beautyScore?: numbe
     scores.skinClarity  * w.skinClarity;
 
   // Blend geometric score (75%) with Face++ beauty (25%) for sanity-check grounding
-  const raw = beautyScore !== undefined
+  const blended = beautyScore !== undefined
     ? geoRaw * 0.75 + beautyScoreToPSL(beautyScore) * 0.25
     : geoRaw;
 
-  // Single deflation pass — PSL 4 is average, compress above that
-  const deflated = raw <= 4 ? raw : 4 + (raw - 4) * 0.82;
-  return Math.round(deflated * 10) / 10;
+  return Math.round(blended * 10) / 10;
 }
