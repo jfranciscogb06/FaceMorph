@@ -244,11 +244,12 @@ const SCORE_KEY_TO_FEATURE: Record<string, string> = {
   jawline: 'Jawline', eyes: 'Eyes', nose: 'Nose', lips: 'Lips', skinClarity: 'Skin',
 };
 
-function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
+function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock, onNewScan }: {
   history: ScanHistoryItem[];
   latestPhotoUri: string | null;
   onDeleteScan: (id: string) => void;
   onUnlock: () => void;
+  onNewScan: () => void;
 }) {
   const streak = computeStreak(history);
   const [showChat, setShowChat] = useState(false);
@@ -322,7 +323,8 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
     return () => animProgress.removeListener(listener);
   }, [history[0]?.id]);
 
-  const selectedScan = history[0] ?? null;
+  const todayStr = localDateStr(new Date());
+  const selectedScan = history.find(h => localDateStr(new Date(h.date)) === todayStr) ?? null;
   const r = selectedScan?.result ?? null;
   const photo = selectedScan?.photoUri || latestPhotoUri;
 
@@ -335,7 +337,7 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
 
   return (
     <View style={{ flex: 1 }}>
-    <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+    <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.tabContent, !selectedScan && { flex: 1 }]}>
       {/* Header */}
       <View style={styles.homeHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
@@ -351,9 +353,12 @@ function HomeTab({ history, latestPhotoUri, onDeleteScan, onUnlock }: {
       </View>
 
       {!selectedScan ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No scan yet</Text>
-          <Text style={styles.emptySub}>Tap + to take your first scan and start tracking your progress.</Text>
+        <View style={styles.homeEmpty}>
+          <Text style={styles.homeEmptyTitle}>No scan today</Text>
+          <Text style={styles.homeEmptySub}>Scan your face to get your daily rating.</Text>
+          <TouchableOpacity style={styles.homeEmptyBtn} onPress={onNewScan} activeOpacity={0.85}>
+            <Ionicons name="add" size={36} color="#fff" />
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={{ paddingHorizontal: 16, gap: 12 }}>
@@ -845,6 +850,7 @@ export default function HomeScreen({ history, latestPhotoUri, onNewScan, onDelet
             latestPhotoUri={latestPhotoUri}
             onDeleteScan={onDeleteScan}
             onUnlock={onUnlock}
+            onNewScan={onNewScan}
           />
         )}
         {tab === 'progress' && (
@@ -910,9 +916,10 @@ const styles = StyleSheet.create({
   streakFire: { fontSize: 16 },
   streakCount: { fontSize: 16, fontWeight: '800', color: '#ea580c' },
 
-  emptyCard: { margin: 16, padding: 28, borderRadius: 20, borderWidth: 1.5, borderColor: '#e5e7eb', borderStyle: 'dashed', alignItems: 'center', gap: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
-  emptySub: { fontSize: 15, color: '#9ca3af', textAlign: 'center', lineHeight: 22 },
+  homeEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingBottom: 80 },
+  homeEmptyTitle: { fontSize: 22, fontWeight: '800', color: '#111', letterSpacing: -0.3 },
+  homeEmptySub: { fontSize: 15, color: '#9ca3af', textAlign: 'center' },
+  homeEmptyBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
 
   latestCard: { marginHorizontal: 16, marginTop: 12, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f9fafb' },
   latestPhoto: { width: '100%', height: 230 },
