@@ -212,7 +212,7 @@ function drawFrame(
 export default function PreviewPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
-  const loopTimer = useRef<ReturnType<typeof setTimeout>>();
+  const loopTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [hasImage, setHasImage] = useState(false);
   const [exporting, setExporting] = useState(false);
